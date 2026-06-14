@@ -31,11 +31,172 @@ import InteractiveShowcase from "./components/InteractiveShowcase";
 import FaqSection from "./components/FaqSection";
 import LeadModal from "./components/LeadModal";
 
+// Add dashboard / client booking routing and Firebase Auth modules
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signInAnonymously, 
+  signOut, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged,
+  updateProfile 
+} from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "./firebase";
+import Dashboard from "./components/Dashboard";
+import ClientBookingPage from "./components/ClientBookingPage";
+
 export default function App() {
   const [activeSegment, setActiveSegment] = useState(INDUSTRIES[0]);
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("yearly");
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedPlanForModal, setSelectedPlanForModal] = useState("Pro");
+
+  // Multi-merchant state-based routing states
+  const [view, setView] = useState<"landing" | "dashboard" | "client-booking">("landing");
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>("default");
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // Authentication dialog form states
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authBusinessName, setAuthBusinessName] = useState("");
+  const [authSegment, setAuthSegment] = useState("salon");
+  const [authError, setAuthError] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+
+  // Sync auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setCheckingAuth(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Check URL path query parameter-like loading
+  useEffect(() => {
+    // If we've routed somewhere, scroll to top automatically
+    window.scrollTo(0, 0);
+  }, [view]);
+
+  // Auth Operations
+  const handleAuthSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setAuthSubmitting(true);
+    try {
+      if (authMode === "register") {
+        if (!authBusinessName.trim()) {
+          setAuthError("Prosím vyplňte název provozovny.");
+          setAuthSubmitting(false);
+          return;
+        }
+        const credential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+        
+        // Write initial Merchant Profile matching firestore.rules limitations
+        await setDoc(doc(db, "leads", credential.user.uid), {
+          businessName: authBusinessName.trim(),
+          segment: authSegment,
+          name: credential.user.displayName || "Nový partner",
+          email: authEmail,
+          phone: "+420 601 234 567",
+          plan: "Pro",
+          createdAt: serverTimestamp()
+        });
+
+        setIsLoginModalOpen(false);
+        setView("dashboard");
+      } else {
+        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        setIsLoginModalOpen(false);
+        setView("dashboard");
+      }
+    } catch (err: any) {
+      console.error("Auth submit error:", err);
+      // Translation helper CZ
+      if (err.code === "auth/email-already-in-use") {
+        setAuthError("Tento e-mail se již používá.");
+      } else if (err.code === "auth/weak-password") {
+        setAuthError("Heslo musí mít alespoň 6 znaků.");
+      } else if (err.code === "auth/invalid-credential") {
+        setAuthError("Nesprávné přihlašovací údaje.");
+      } else {
+        setAuthError("Chyba ověření: " + (err.message || String(err)));
+      }
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setAuthError("");
+    setAuthSubmitting(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const credential = await signInWithPopup(auth, provider);
+      
+      // Auto-initialize lead profile if none exists
+      const docRef = doc(db, "leads", credential.user.uid);
+      const docSnap = await setDoc(docRef, {
+        businessName: credential.user.displayName + " Salon",
+        segment: "salon",
+        name: credential.user.displayName || "Provozovatel",
+        email: credential.user.email || "",
+        phone: "+420 608 111 222",
+        plan: "Pro",
+        createdAt: serverTimestamp()
+      }, { merge: true });
+
+      setIsLoginModalOpen(false);
+      setView("dashboard");
+    } catch (err: any) {
+      console.error("Google sign in error:", err);
+      setAuthError("Přihlášení přes Google se nezdařilo.");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleDemoSignIn = async () => {
+    setAuthError("");
+    setAuthSubmitting(true);
+    try {
+      const credential = await signInAnonymously(auth);
+      
+      // Preset high-fidelity mock salon settings for instant demonstration
+      await setDoc(doc(db, "leads", credential.user.uid), {
+        businessName: "Kadeřnictví Elegance (Demo)",
+        segment: "hair",
+        name: "Simona Hrušková",
+        email: "simona@spinly-demo.cz",
+        phone: "+420 732 454 888",
+        plan: "Pro",
+        createdAt: serverTimestamp()
+      });
+
+      setIsLoginModalOpen(false);
+      setView("dashboard");
+    } catch (err: any) {
+      console.error("Demo login error:", err);
+      setAuthError("Nebylo možné spustit demo účet.");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setView("landing");
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
   
   // Live simulated booking counter to increase social proof immersion
   const [bookingCounter, setBookingCounter] = useState(142480);
@@ -94,6 +255,26 @@ export default function App() {
     document.getElementById("demo-showcase")?.scrollIntoView({ behavior: "smooth" });
   };
 
+  if (view === "dashboard" && currentUser) {
+    return (
+      <Dashboard 
+        user={currentUser} 
+        onLogout={handleLogout} 
+        onGoToBooking={(busId) => { setSelectedBusinessId(busId); setView("client-booking"); }} 
+        onBackToLanding={() => setView("landing")} 
+      />
+    );
+  }
+
+  if (view === "client-booking" && selectedBusinessId) {
+    return (
+      <ClientBookingPage 
+        businessId={selectedBusinessId} 
+        onBackToLanding={() => setView("landing")} 
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fafafa] selection:bg-indigo-600 selection:text-white font-sans antialiased text-neutral-900 scroll-smooth">
       
@@ -127,19 +308,32 @@ export default function App() {
 
           {/* Nav CTAs */}
           <div className="flex items-center gap-3">
-            <a 
-              href="#demo-showcase" 
-              onClick={scrollToDemo}
-              className="text-neutral-500 hover:text-indigo-600 font-extrabold text-sm tracking-tight hidden sm:inline transition-all"
-            >
-              Spinly Demo
-            </a>
-            <button
-              onClick={() => openLeadForPlan("Pro")}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-95 cursor-pointer"
-            >
-              Vyzkoušet zdarma
-            </button>
+            {currentUser ? (
+              <>
+                <button
+                  onClick={() => setView(view === "dashboard" ? "landing" : "dashboard")}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-5 rounded-xl text-sm shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Zap className="w-4 h-4 fill-white" />
+                  {view === "dashboard" ? "Zpět na web" : "Administrace"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => { setAuthMode("login"); setIsLoginModalOpen(true); }}
+                  className="text-neutral-500 hover:text-indigo-600 font-extrabold text-sm tracking-tight transition-all cursor-pointer"
+                >
+                  Vstup pro živnostníky
+                </button>
+                <button
+                  onClick={() => { setAuthMode("register"); setIsLoginModalOpen(true); }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-95 cursor-pointer"
+                >
+                  Vyzkoušet zdarma
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -812,6 +1006,180 @@ export default function App() {
         onClose={() => setIsLeadModalOpen(false)} 
         initialPlanName={selectedPlanForModal}
       />
+
+      {/* 12. Multi-Merchant Account Authorization Dialog */}
+      {isLoginModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-neutral-200 p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+            
+            {/* Close button */}
+            <button 
+              onClick={() => { setIsLoginModalOpen(false); setAuthError(""); }}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 font-extrabold text-xl p-1 leading-none select-none"
+            >
+              ✕
+            </button>
+
+            {/* Core Header */}
+            <div className="text-center space-y-1.5 mb-6">
+              <div className="bg-indigo-50 text-indigo-700 font-bold p-3 rounded-2xl w-fit mx-auto mb-2">
+                <Scissors className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-extrabold tracking-tight text-neutral-950">
+                {authMode === "login" ? "Vstup do administrace" : "Založení bezplatného účtu"}
+              </h3>
+              <p className="text-xs text-neutral-500 font-medium">
+                {authMode === "login" 
+                  ? "Spravujte své rezervace a zákazníky na jednom místě." 
+                  : "Získejte kompletní rezervační systém zdarma na 14 dní."}
+              </p>
+            </div>
+
+            {/* Form Toggle Tabs switcher */}
+            <div className="flex border-b border-neutral-100 pb-3 mb-4 select-none">
+              <button
+                type="button"
+                onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                className={`flex-1 text-center pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  authMode === "login" 
+                    ? "border-indigo-600 text-indigo-700" 
+                    : "border-transparent text-neutral-400 hover:text-neutral-600"
+                }`}
+              >
+                Přihlášení
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                className={`flex-1 text-center pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                  authMode === "register" 
+                    ? "border-indigo-600 text-indigo-700" 
+                    : "border-transparent text-neutral-400 hover:text-neutral-600"
+                }`}
+              >
+                Registrace podniku
+              </button>
+            </div>
+
+            {/* Core credentials form fields */}
+            <form onSubmit={handleAuthSubmit} className="space-y-4">
+              
+              {authMode === "register" && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                      Název vašeho podniku / salonu
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Např. Studio Glamour"
+                      value={authBusinessName}
+                      onChange={(e) => setAuthBusinessName(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                      Hlavní zaměření / segment
+                    </label>
+                    <select
+                      value={authSegment}
+                      onChange={(e) => setAuthSegment(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium bg-white"
+                    >
+                      {INDUSTRIES.map(i => (
+                        <option key={i.id} value={i.id}>{i.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  E-mailová adresa (uživatelské jméno)
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="partner@spinly.cz"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-mono font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                  Heslo (alespoň 6 znaků)
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium"
+                />
+              </div>
+
+              {/* Error box */}
+              {authError && (
+                <div className="flex gap-2 items-start bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-xl text-[11px] font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              {/* Submit triggers */}
+              <button
+                type="submit"
+                disabled={authSubmitting}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-md cursor-pointer"
+              >
+                {authSubmitting ? "Ověřuji..." : authMode === "login" ? "Přihlásit se" : "Založit účet zdarma"}
+              </button>
+
+            </form>
+
+            {/* Split dividers */}
+            <div className="relative my-5 text-center select-none">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-neutral-100" />
+              </div>
+              <span className="relative bg-white px-2.5 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nebo</span>
+            </div>
+
+            {/* Google sign-in integrations */}
+            <div className="space-y-2.5">
+              <button
+                onClick={handleGoogleSignIn}
+                disabled={authSubmitting}
+                className="w-full py-2 px-4 border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold hover:bg-neutral-50 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+              >
+                <span className="text-sm">🌐</span>
+                Přihlásit se přes Google
+              </button>
+
+              {/* Fast anonymous sandbox tour bypass is a premier design decision */}
+              <button
+                onClick={handleDemoSignIn}
+                disabled={authSubmitting}
+                className="w-full py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-indigo-100 animate-pulse"
+              >
+                <Zap className="w-3.5 h-3.5 fill-white shrink-0" />
+                Rychlé vyzkoušení jako Host Administrátor
+              </button>
+              <p className="text-[10px] text-neutral-400 font-semibold text-center leading-none mt-1">
+                (Otevře plnou zkušební administraci ihned na 1 kliknutí)
+              </p>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

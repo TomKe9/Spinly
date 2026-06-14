@@ -11,11 +11,45 @@
         "time": { "type": "string", "description": "Čas termínu (např. 14:00)." },
         "clientName": { "type": "string", "description": "Jméno a příjmení klienta." },
         "clientPhone": { "type": "string", "description": "Telefonní číslo pro zaslání SMS." },
-        "status": { "type": "string", "enum": ["přijato", "stornováno"], "description": "Aktuální stav rezervace." },
+        "clientEmail": { "type": "string", "description": "Nepovinný kontaktní e-mail klienta." },
+        "status": { "type": "string", "enum": ["přijato", "potvrzeno", "stornováno", "hotovo"], "description": "Aktuální stav rezervace." },
         "industry": { "type": "string", "description": "Kategorie podniku (salon, hair, massage, physio, other)." },
+        "businessId": { "type": "string", "description": "Identifikátor obchodníka (uid), ke kterému rezervace patří." },
+        "note": { "type": "string", "description": "Interní poznámka k návštěvě pro obchodníka." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Čas vytvoření rezervace." }
       },
       "required": ["service", "day", "time", "clientName", "clientPhone", "status", "industry", "createdAt"]
+    },
+    "service": {
+      "title": "Service",
+      "description": "Nabízená služba daného salonu nebo živnostníka.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unikátní ID služby." },
+        "name": { "type": "string", "description": "Název služby." },
+        "price": { "type": "number", "description": "Cena služby v Kč." },
+        "duration": { "type": "number", "description": "Doba trvání v minutách." },
+        "businessId": { "type": "string", "description": "Identifikátor obchodníka (uid), který službu nabízí." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Čas vytvoření služby." }
+      },
+      "required": ["name", "price", "duration", "businessId", "createdAt"]
+    },
+    "businessProfile": {
+      "title": "BusinessProfile",
+      "description": "Podrobný profil podniku, kontaktní údaje a nastavení pracovní doby.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "UID obchodníka z Firebase Auth." },
+        "businessName": { "type": "string", "description": "Obchodní jméno podniku / salonu." },
+        "ownerName": { "type": "string", "description": "Celé jméno majitele." },
+        "email": { "type": "string", "format": "email", "description": "Kontaktní e-mail." },
+        "phone": { "type": "string", "description": "Telefonní číslo podniku." },
+        "industry": { "type": "string", "description": "Obor podnikání (salon, hair, massage, physio, other)." },
+        "startHour": { "type": "string", "description": "Počáteční pracovní hodina (např. 08:00)." },
+        "endHour": { "type": "string", "description": "Koncová pracovní hodina (např. 18:00)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Čas vytvoření profilu." }
+      },
+      "required": ["businessName", "ownerName", "email", "phone", "industry", "createdAt"]
     },
     "lead": {
       "title": "Lead",
@@ -38,6 +72,14 @@
     "/bookings/{bookingId}": {
       "schema": "booking",
       "description": "Kolekce pro všechny klientské rezervace termínů."
+    },
+    "/services/{serviceId}": {
+      "schema": "service",
+      "description": "Kolekce pro nabízené služby jednotlivých obchodníků."
+    },
+    "/businessProfiles/{profileId}": {
+      "schema": "businessProfile",
+      "description": "Kolekce pro profily a nastavení jednotlivých obchodníků."
     },
     "/leads/{leadId}": {
       "schema": "lead",
