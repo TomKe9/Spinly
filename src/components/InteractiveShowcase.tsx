@@ -16,8 +16,6 @@ import {
   Smartphone
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "../firebase";
 
 export default function InteractiveShowcase() {
   const [selectedIndustry, setSelectedIndustry] = useState(INDUSTRIES[0]);
@@ -29,6 +27,7 @@ export default function InteractiveShowcase() {
   const [isBooked, setIsBooked] = useState(false);
   const [smsTimer, setSmsTimer] = useState<boolean>(false);
   const [smsIncoming, setSmsIncoming] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Restart the booking simulation
   const handleReset = () => {
@@ -36,6 +35,7 @@ export default function InteractiveShowcase() {
     setIsSubmitting(false);
     setSmsTimer(false);
     setSmsIncoming(false);
+    setSubmitError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,23 +43,34 @@ export default function InteractiveShowcase() {
     if (!clientName.trim() || !clientPhone.trim()) return;
     
     setIsSubmitting(true);
+    setSubmitError(null);
     
     const randomSuffix = Math.random().toString(36).substring(2, 12);
     const bookingId = "book-" + randomSuffix;
-    const path = `bookings/${bookingId}`;
 
     try {
-      // 1. Persist the booking directly to active Cloud firestore database
-      await setDoc(doc(db, "bookings", bookingId), {
-        service: selectedIndustry.service,
-        day: selectedDay,
-        time: selectedTime,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        status: "přijato",
-        industry: selectedIndustry.id,
-        createdAt: serverTimestamp()
+      // 1. Persist the booking through secure server-side API proxy to bypass Firestore client rules
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: bookingId,
+          service: selectedIndustry.service,
+          day: selectedDay,
+          time: selectedTime,
+          clientName: clientName.trim(),
+          clientPhone: clientPhone.trim(),
+          status: "přijato",
+          industry: selectedIndustry.id
+        })
       });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Nepodařilo se uložit rezervační data.");
+      }
 
       // 2. Clear state and trigger simulator responses
       setIsSubmitting(false);
@@ -75,9 +86,10 @@ export default function InteractiveShowcase() {
         }, 3000);
       }, 1000);
 
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Booking error:", err);
       setIsSubmitting(false);
-      handleFirestoreError(err, OperationType.CREATE, path);
+      setSubmitError(err.message || "Přihlášení rezervace se nezdařilo. Zkuste to prosím znovu.");
     }
   };
 
@@ -253,6 +265,12 @@ export default function InteractiveShowcase() {
                     />
                   </div>
                 </div>
+
+                {submitError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl text-center">
+                    {submitError}
+                  </div>
+                )}
 
                 <button
                   type="submit"

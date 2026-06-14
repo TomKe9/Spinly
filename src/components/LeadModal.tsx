@@ -12,8 +12,6 @@ import {
   CalendarCheck
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "../firebase";
 
 interface LeadModalProps {
   isOpen: boolean;
@@ -30,6 +28,7 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
   const [name, setName] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -49,28 +48,40 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
     if (!email.trim() || !phone.trim() || !name.trim() || !businessName.trim()) return;
 
     setIsLoading(true);
+    setSubmitError(null);
     
     const randomSuffix = Math.random().toString(36).substring(2, 12);
     const leadId = "lead-" + randomSuffix;
-    const path = `leads/${leadId}`;
 
     try {
-      // 1. Persist signup lead information directly to secure cloud database
-      await setDoc(doc(db, "leads", leadId), {
-        businessName: businessName.trim(),
-        segment: segment,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        plan: initialPlanName,
-        createdAt: serverTimestamp()
+      // 1. Persist signup lead information securely through server-side REST API endpoint
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: leadId,
+          businessName: businessName.trim(),
+          segment: segment,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          plan: initialPlanName
+        })
       });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Uložení registrace selhalo.");
+      }
 
       setIsLoading(false);
       setStep(3); // Success step
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Lead submission error:", err);
       setIsLoading(false);
-      handleFirestoreError(err, OperationType.CREATE, path);
+      setSubmitError(err.message || "Registrace se nezdařila. Zkuste to prosím znovu.");
     }
   };
 
@@ -251,6 +262,12 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
                     </label>
                   </div>
                 </div>
+
+                {submitError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl text-center">
+                    {submitError}
+                  </div>
+                )}
 
                 {/* Progress dot indicators */}
                 <div className="flex items-center justify-between pt-4 gap-4">

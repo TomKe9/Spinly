@@ -1,66 +1,8 @@
 rules_version = '2';
-service cloud9.firestore {
+service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Global Safety Net default-deny
     match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Validation Primitives
-    function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
-    }
-
-    function isSafeString(val, minLen, maxLen) {
-      return val is string && val.size() >= minLen && val.size() <= maxLen;
-    }
-
-    // 1. Validation Blueprint for Bookings
-    function isValidBooking(data) {
-      return data.keys().hasAll(['service', 'day', 'time', 'clientName', 'clientPhone', 'status', 'industry', 'createdAt'])
-        && data.keys().size() == 8
-        && isSafeString(data.service, 3, 100)
-        && isSafeString(data.day, 2, 50)
-        && isSafeString(data.time, 4, 10)
-        && isSafeString(data.clientName, 2, 100)
-        && isSafeString(data.clientPhone, 6, 25)
-        && (data.status == 'přijato' || data.status == 'stornováno')
-        && isSafeString(data.industry, 2, 50)
-        && data.createdAt is timestamp;
-    }
-
-    // 2. Validation Blueprint for Leads
-    function isValidLead(data) {
-      return data.keys().hasAll(['businessName', 'segment', 'name', 'email', 'phone', 'plan', 'createdAt'])
-        && data.keys().size() == 7
-        && isSafeString(data.businessName, 2, 120)
-        && isSafeString(data.segment, 2, 50)
-        && isSafeString(data.name, 2, 100)
-        && isSafeString(data.email, 5, 120) && data.email.matches('^[^@]+@[^@]+\\.[^@]+$')
-        && isSafeString(data.phone, 6, 25)
-        && isSafeString(data.plan, 2, 50)
-        && data.createdAt is timestamp;
-    }
-
-    // Rules for Bookings
-    match /bookings/{bookingId} {
-      allow get: if isValidId(bookingId);
-      allow create: if isValidId(bookingId) 
-        && isValidBooking(request.resource.data)
-        && request.resource.data.createdAt == request.time;
-      // No list/update/delete allowed to protect user phone numbers and schedules
-      allow list, update, delete: if false;
-    }
-
-    // Rules for Leads (trial sign ups)
-    match /leads/{leadId} {
-      allow get: if isValidId(leadId);
-      allow create: if isValidId(leadId) 
-        && isValidLead(request.resource.data)
-        && request.resource.data.createdAt == request.time;
-      // Protected completely against external indexing or malicious updates
-      allow list, update, delete: if false;
+      allow read, write: if true;
     }
   }
 }
