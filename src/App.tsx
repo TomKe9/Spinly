@@ -89,6 +89,11 @@ export default function App() {
 
   const currentCopy = getDynamicHeadline();
 
+  const scrollToDemo = (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById("demo-showcase")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-[#fafafa] selection:bg-indigo-600 selection:text-white font-sans antialiased text-neutral-900 scroll-smooth">
       
@@ -97,7 +102,11 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
           {/* Logo element matches humble branding rules */}
-          <div className="flex items-center gap-2.5">
+          <a 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} 
+            className="flex items-center gap-2.5 hover:opacity-90 active:scale-98 transition-all"
+          >
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold tracking-tight shadow-md shadow-indigo-150">
               <CalendarCheck className="w-5 h-5 stroke-[2.5]" />
             </div>
@@ -105,7 +114,7 @@ export default function App() {
               Spinly
               <span className="text-xs bg-emerald-500/10 text-emerald-700 font-mono font-semibold px-2 py-0.5 rounded-full">CZ</span>
             </span>
-          </div>
+          </a>
 
           {/* Desktop utility navigation list */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-600">
@@ -120,9 +129,10 @@ export default function App() {
           <div className="flex items-center gap-3">
             <a 
               href="#demo-showcase" 
-              className="text-xs font-bold text-neutral-500 hover:text-neutral-900 transition-colors uppercase tracking-wider hidden sm:inline"
+              onClick={scrollToDemo}
+              className="text-neutral-500 hover:text-indigo-600 font-extrabold text-sm tracking-tight hidden sm:inline transition-all"
             >
-              Vyzkoušet Demo
+              Spinly Demo
             </a>
             <button
               onClick={() => openLeadForPlan("Pro")}
@@ -200,6 +210,7 @@ export default function App() {
               
               <a 
                 href="#demo-showcase"
+                onClick={scrollToDemo}
                 className="w-full sm:w-auto bg-white border border-neutral-250 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 font-semibold px-8 py-4 rounded-xl text-base flex items-center justify-center gap-1.5 transition-all text-center"
               >
                 <Clock className="w-5 h-5 text-neutral-400" />
