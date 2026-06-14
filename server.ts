@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
+import fs from "fs";
 import { initializeApp, getApps, getApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import firebaseConfig from "./firebase-applet-config.json" assert { type: "json" };
@@ -81,17 +81,35 @@ async function startServer() {
     }
   });
 
-  // Vite development server asset pipeline or production build serve middleware
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Starting server in development mode with Vite middleware...");
+  // Serve statically if running bundled distribution, or if in production env, or if server.ts is absent
+  const isCjsBundle = typeof __dirname !== "undefined" && __dirname.endsWith("dist");
+  const distPath = isCjsBundle ? __dirname : path.join(process.cwd(), "dist");
+  const useStatic = process.env.NODE_ENV === "production" || isCjsBundle || (!fs.existsSync(path.join(process.cwd(), "server.ts")) && fs.existsSync(distPath));
+
+  if (!useStatic) {
+    console.log("Starting server in development / fallback mode with Vite middleware...");
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "custom",
     });
     app.use(vite.middlewares);
+
+    // Dynamic HTML transformation catch-all fallback for SPA routing
+    app.use("*", async (req, res, next) => {
+      const url = req.originalUrl;
+      try {
+        const htmlFile = path.resolve(process.cwd(), "index.html");
+        let html = fs.readFileSync(htmlFile, "utf-8");
+        html = await vite.transformIndexHtml(url, html);
+        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
     console.log("Starting server in production mode serving static dist folder...");
-    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
