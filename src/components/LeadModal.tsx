@@ -12,6 +12,8 @@ import {
   CalendarCheck
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "../firebase";
 
 interface LeadModalProps {
   isOpen: boolean;
@@ -54,26 +56,19 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
     const leadId = "lead-" + randomSuffix;
 
     try {
-      // 1. Persist signup lead information securely through server-side REST API endpoint
-      const response = await fetch("/api/leads", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: leadId,
+      // 1. Persist signup lead information directly via Firestore Client SDK
+      try {
+        await setDoc(doc(db, "leads", leadId), {
           businessName: businessName.trim(),
           segment: segment,
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim(),
-          plan: initialPlanName
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Uložení registrace selhalo.");
+          plan: initialPlanName,
+          createdAt: serverTimestamp()
+        });
+      } catch (firestoreError) {
+        handleFirestoreError(firestoreError, OperationType.WRITE, `leads/${leadId}`);
       }
 
       setIsLoading(false);

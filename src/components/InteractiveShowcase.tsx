@@ -16,6 +16,8 @@ import {
   Smartphone
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "../firebase";
 
 export default function InteractiveShowcase() {
   const [selectedIndustry, setSelectedIndustry] = useState(INDUSTRIES[0]);
@@ -49,27 +51,20 @@ export default function InteractiveShowcase() {
     const bookingId = "book-" + randomSuffix;
 
     try {
-      // 1. Persist the booking through secure server-side API proxy to bypass Firestore client rules
-      const response = await fetch("/api/bookings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: bookingId,
+      // 1. Persist the booking directly using Firestore client SDK
+      try {
+        await setDoc(doc(db, "bookings", bookingId), {
           service: selectedIndustry.service,
           day: selectedDay,
           time: selectedTime,
           clientName: clientName.trim(),
           clientPhone: clientPhone.trim(),
           status: "přijato",
-          industry: selectedIndustry.id
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || "Nepodařilo se uložit rezervační data.");
+          industry: selectedIndustry.id,
+          createdAt: serverTimestamp()
+        });
+      } catch (firestoreError) {
+        handleFirestoreError(firestoreError, OperationType.WRITE, `bookings/${bookingId}`);
       }
 
       // 2. Clear state and trigger simulator responses
