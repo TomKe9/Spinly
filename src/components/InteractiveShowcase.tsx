@@ -16,6 +16,8 @@ import {
   Smartphone
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "../firebase";
 
 export default function InteractiveShowcase() {
   const [selectedIndustry, setSelectedIndustry] = useState(INDUSTRIES[0]);
@@ -36,17 +38,34 @@ export default function InteractiveShowcase() {
     setSmsIncoming(false);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clientName.trim()) return;
+    if (!clientName.trim() || !clientPhone.trim()) return;
     
     setIsSubmitting(true);
     
-    setTimeout(() => {
+    const randomSuffix = Math.random().toString(36).substring(2, 12);
+    const bookingId = "book-" + randomSuffix;
+    const path = `bookings/${bookingId}`;
+
+    try {
+      // 1. Persist the booking directly to active Cloud firestore database
+      await setDoc(doc(db, "bookings", bookingId), {
+        service: selectedIndustry.service,
+        day: selectedDay,
+        time: selectedTime,
+        clientName: clientName.trim(),
+        clientPhone: clientPhone.trim(),
+        status: "přijato",
+        industry: selectedIndustry.id,
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Clear state and trigger simulator responses
       setIsSubmitting(false);
       setIsBooked(true);
       
-      // Simulate SMS receiving after 1.2s
+      // Simulate SMS receiving after 1.2s to show beautiful UI experience
       setTimeout(() => {
         setSmsTimer(true);
         setSmsIncoming(true);
@@ -55,7 +74,11 @@ export default function InteractiveShowcase() {
           setSmsIncoming(false);
         }, 3000);
       }, 1000);
-    }, 800);
+
+    } catch (err) {
+      setIsSubmitting(false);
+      handleFirestoreError(err, OperationType.CREATE, path);
+    }
   };
 
   // Switch industries and update recommended default service

@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "booking": {
+      "title": "Booking",
+      "description": "Zákaznická rezervace termínu ve službě.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unikátní ID rezervace." },
+        "service": { "type": "string", "description": "Název vybrané služby." },
+        "day": { "type": "string", "description": "Datum nebo den rezervace (např. Dnes, Zítra, konkrétní datum)." },
+        "time": { "type": "string", "description": "Čas termínu (např. 14:00)." },
+        "clientName": { "type": "string", "description": "Jméno a příjmení klienta." },
+        "clientPhone": { "type": "string", "description": "Telefonní číslo pro zaslání SMS." },
+        "status": { "type": "string", "enum": ["přijato", "stornováno"], "description": "Aktuální stav rezervace." },
+        "industry": { "type": "string", "description": "Kategorie podniku (salon, hair, massage, physio, other)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Čas vytvoření rezervace." }
+      },
+      "required": ["service", "day", "time", "clientName", "clientPhone", "status", "industry", "createdAt"]
+    },
+    "lead": {
+      "title": "Lead",
+      "description": "Registrace zkušebního účtu majitele salonu / podniku.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unikátní ID leadu." },
+        "businessName": { "type": "string", "description": "Název podniku." },
+        "segment": { "type": "string", "description": "Obor podnikání." },
+        "name": { "type": "string", "description": "Celé jméno majitele." },
+        "email": { "type": "string", "format": "email", "description": "Kontaktní e-mail." },
+        "phone": { "type": "string", "description": "Kontaktní telefon." },
+        "plan": { "type": "string", "description": "Zvolený tarif (Zdarma, Pro, Enterprise)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Čas registrace." }
+      },
+      "required": ["businessName", "segment", "name", "email", "phone", "plan", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/bookings/{bookingId}": {
+      "schema": "booking",
+      "description": "Kolekce pro všechny klientské rezervace termínů."
+    },
+    "/leads/{leadId}": {
+      "schema": "lead",
+      "description": "Kolekce pro zkušební registrace partnerů do systému Spinly."
+    }
+  }
+}

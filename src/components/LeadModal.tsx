@@ -12,6 +12,8 @@ import {
   CalendarCheck
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "../firebase";
 
 interface LeadModalProps {
   isOpen: boolean;
@@ -42,17 +44,34 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
     setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !phone.trim() || !name.trim()) return;
+    if (!email.trim() || !phone.trim() || !name.trim() || !businessName.trim()) return;
 
     setIsLoading(true);
+    
+    const randomSuffix = Math.random().toString(36).substring(2, 12);
+    const leadId = "lead-" + randomSuffix;
+    const path = `leads/${leadId}`;
 
-    // Simulate database persistent store simulation
-    setTimeout(() => {
+    try {
+      // 1. Persist signup lead information directly to secure cloud database
+      await setDoc(doc(db, "leads", leadId), {
+        businessName: businessName.trim(),
+        segment: segment,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        plan: initialPlanName,
+        createdAt: serverTimestamp()
+      });
+
       setIsLoading(false);
       setStep(3); // Success step
-    }, 1500);
+    } catch (err) {
+      setIsLoading(false);
+      handleFirestoreError(err, OperationType.CREATE, path);
+    }
   };
 
   return (
