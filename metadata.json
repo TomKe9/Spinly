@@ -1,0 +1,6 @@
+{
+  "name": "Spinly",
+  "description": "Vysoce konverzní landing page pro moderní rezervační systém Spinly zaměřený na salony a služby.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
