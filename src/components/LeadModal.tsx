@@ -9,7 +9,8 @@ import {
   ArrowRight, 
   ArrowLeft,
   Check,
-  CalendarCheck
+  CalendarCheck,
+  CheckCircle2
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -36,7 +37,7 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
 
   const handleNextStep = () => {
     if (step === 1 && !businessName.trim()) {
-      return; // Validation helper
+      return;
     }
     setStep(step + 1);
   };
@@ -56,7 +57,6 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
     const leadId = "lead-" + randomSuffix;
 
     try {
-      // 1. Persist signup lead information directly via Firestore Client SDK
       try {
         await setDoc(doc(db, "leads", leadId), {
           businessName: businessName.trim(),
@@ -82,10 +82,9 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-      {/* Background backdrop blur */}
       <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
         <div 
-          className="fixed inset-0 transition-opacity bg-neutral-900/60 backdrop-blur-xs" 
+          className="fixed inset-0 transition-opacity bg-stone-900/40 backdrop-blur-sm" 
           aria-hidden="true"
           onClick={onClose}
         />
@@ -94,71 +93,72 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
         {/* Modal panel container */}
-        <div className="inline-block align-bottom bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-neutral-100">
+        <div className="inline-block align-bottom bg-[#fbfbf9] rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-stone-200 relative">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-600" />
           
           {/* Header */}
-          <div className="px-6 py-4 bg-neutral-50/50 border-b border-neutral-100 flex items-center justify-between">
+          <div className="px-6 py-4 bg-stone-100/50 border-b border-stone-200/80 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full" />
-              <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest">
-                Registrace zkušební verze
+              <span className="w-2.5 h-2.5 bg-brand-500 rounded-full animate-pulse" />
+              <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest font-mono">
+                Registrace zkušební doby • Spinly
               </p>
             </div>
             <button 
               onClick={onClose}
-              className="text-neutral-400 hover:text-neutral-600 p-1 bg-white rounded-full border border-neutral-100 hover:scale-105 transition-all cursor-pointer"
+              className="text-stone-400 hover:text-stone-700 p-1 hover:scale-105 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Modal Content */}
-          <div className="p-6 md:p-8">
+          <div className="p-6">
             
             {/* Step 1: Business name and segment */}
             {step === 1 && (
-              <div className="space-y-6">
-                <div className="text-center sm:text-left">
-                  <h3 className="text-2xl font-display font-bold text-neutral-950">
+              <div className="space-y-5">
+                <div>
+                  <h3 className="text-xl font-display font-black text-stone-900 leading-tight">
                     Pojďme nastavit váš kalendář
                   </h3>
-                  <p className="text-sm text-neutral-500 mt-1">
-                    Založte si účet s balíčkem <strong className="text-indigo-600">Spinly {initialPlanName}</strong> na 14 dní zdarma. Bez platební karty.
+                  <p className="text-xs text-stone-500 mt-1.5 leading-relaxed font-semibold">
+                    Založte si zkušební kalendář <strong className="text-brand-600 font-bold">Spinly {initialPlanName}</strong> na 14 dní zdarma. Bez zadávání platební karty.
                   </p>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <Building className="w-3.5 h-3.5 text-neutral-400" />
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-brand-500" />
                       Název vašeho podniku / salonu
                     </label>
                     <input
                       type="text"
-                      className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:outline-hidden text-sm font-medium text-neutral-800 placeholder-neutral-400"
-                      placeholder="Např. Studio Krása nebo Dentální péče"
+                      className="w-full px-4 py-2.5 rounded-xl border border-stone-250 bg-white focus:outline-none text-xs font-bold text-stone-900 placeholder-stone-400"
+                      placeholder="Např. Studio Glamour nebo Kadeřnictví Elegance"
                       value={businessName}
                       onChange={(e) => setBusinessName(e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5">
                       Obor podnikání
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {INDUSTRIES.map((ind) => (
                         <button
                           key={ind.id}
                           type="button"
                           onClick={() => setSegment(ind.id)}
-                          className={`p-3 text-left rounded-xl border text-xs font-medium transition-all flex items-center gap-2 ${
+                          className={`p-2.5 text-left rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                             segment === ind.id 
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700" 
-                              : "bg-white border-neutral-200 text-neutral-600 hover:border-neutral-300"
+                              ? "bg-brand-50 text-brand-700 border-brand-300 font-extrabold shadow-xs" 
+                              : "bg-white border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
                           }`}
                         >
-                          <span className="shrink-0">
+                          <span className="shrink-0 text-sm">
                             {ind.id === "salon" && "✨"}
                             {ind.id === "hair" && "💇"}
                             {ind.id === "massage" && "💆"}
@@ -176,10 +176,10 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
                   <button
                     onClick={handleNextStep}
                     disabled={!businessName.trim()}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white py-3 px-6 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all cursor-pointer"
+                    className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
                   >
-                    Pokračovat k registraci
-                    <ArrowRight className="w-4 h-4" />
+                    Pokračovat k údajům
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -187,73 +187,73 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
 
             {/* Step 2: Contact Info */}
             {step === 2 && (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="text-center sm:text-left">
-                  <h3 className="text-2xl font-display font-bold text-neutral-950">
-                    Osobní a kontaktní údaje
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <h3 className="text-xl font-display font-black text-stone-900">
+                    Kontaktní údaje podniku
                   </h3>
-                  <p className="text-sm text-neutral-500 mt-1">
-                    Vytvoříme vám profil a zašleme přístupové údaje.
+                  <p className="text-xs text-stone-500 mt-1 leading-relaxed font-semibold">
+                    Vytvoříme vám bezplatný profil a okamžitě získáte přístup.
                   </p>
                 </div>
 
-                <div className="space-y-3.5">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-neutral-400" />
-                      Vaše jméno
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-brand-500" />
+                      Vaše celé jméno
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="Např. Mgr. Klára Nováková"
-                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:outline-hidden text-sm font-medium text-neutral-800"
+                      placeholder="Klára Rychlá"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-250 bg-white focus:outline-none text-xs font-bold text-stone-900 placeholder-stone-400"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Mail className="w-3.5 h-3.5 text-neutral-400" />
-                      E-mailová adresa (přihlašovací jméno)
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-brand-500" />
+                      Přihlašovací E-mail
                     </label>
                     <input
                       type="email"
                       required
-                      placeholder="jmeno@salon.cz"
-                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:outline-hidden text-sm font-medium text-neutral-800"
+                      placeholder="krasatvoria@seznam.cz"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-250 bg-white focus:outline-none text-xs font-bold text-stone-900 placeholder-stone-400 font-mono"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-neutral-400" />
-                      Telefonní číslo (pro SMS synchronizace)
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-brand-500" />
+                      Vaše telefonní číslo
                     </label>
                     <input
                       type="tel"
                       required
                       placeholder="+420 777 555 666"
-                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:outline-hidden text-sm font-medium text-neutral-800"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-250 bg-white focus:outline-none text-xs font-bold text-stone-900 placeholder-stone-400 font-mono"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                     />
                   </div>
 
                   {/* Consents */}
-                  <div className="flex items-start gap-2.5 pt-2">
+                  <div className="flex items-start gap-2 pt-1">
                     <input
                       type="checkbox"
                       id="termsAndGdpr"
                       checked={agreedToTerms}
                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="mt-1 rounded-sm border-neutral-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                      className="mt-0.5 rounded border-stone-300 text-brand-600 focus:ring-brand-500 w-3.5 h-3.5 cursor-pointer"
                     />
-                    <label htmlFor="termsAndGdpr" className="text-xs text-neutral-500 leading-normal cursor-pointer select-none">
-                      Souhlasím se zpracováním osobních údajů (GDPR) a obchodními podmínkami rezervačního systému Spinly. Bezpečnost dat je naší prioritou.
+                    <label htmlFor="termsAndGdpr" className="text-[10px] text-stone-500 leading-snug cursor-pointer select-none font-medium">
+                      Souhlasím se zpracováním osobních údajů (GDPR) a obchodními podmínkami rezervačního systému Spinly. Bezpečnost dat je zaručena.
                     </label>
                   </div>
                 </div>
@@ -264,31 +264,31 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
                   </div>
                 )}
 
-                {/* Progress dot indicators */}
-                <div className="flex items-center justify-between pt-4 gap-4">
+                {/* Progress indicators */}
+                <div className="flex items-center justify-between pt-2 gap-3">
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="px-4 py-2.5 text-xs font-semibold text-neutral-500 hover:text-neutral-800 transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-2 text-xs font-bold text-stone-500 hover:text-stone-800 transition-all flex items-center gap-1 cursor-pointer"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <ArrowLeft className="w-3 h-3" />
                     Zpět
                   </button>
 
                   <button
                     type="submit"
                     disabled={isLoading || !agreedToTerms}
-                    className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white py-3 px-6 rounded-xl font-medium text-sm flex items-center gap-2 shadow-lg shadow-indigo-100 transition-all cursor-pointer"
+                    className="bg-brand-600 hover:bg-brand-700 disabled:opacity-45 text-white py-2.5 px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
                   >
                     {isLoading ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white/35 border-t-white rounded-full animate-spin" />
-                        Nastavuji kalendář...
+                        <div className="w-3.5 h-3.5 border-2 border-white/35 border-t-white rounded-full animate-spin" />
+                        Provádím...
                       </>
                     ) : (
                       <>
-                        Aktivovat Spinly {initialPlanName}
-                        <Check className="w-4 h-4" />
+                        Dokončit {initialPlanName}
+                        <Check className="w-3.5 h-3.5" />
                       </>
                     )}
                   </button>
@@ -298,39 +298,39 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
 
             {/* Step 3: Success Confirmation */}
             {step === 3 && (
-              <div className="text-center py-6 space-y-6">
-                <div className="mx-auto w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center shadow-inner">
-                  <CheckCircle className="w-12 h-12 stroke-[2.5]" />
+              <div className="text-center py-4 space-y-5">
+                <div className="mx-auto w-16 h-16 bg-brand-50 text-brand-600 rounded-full flex items-center justify-center border border-brand-100 shadow-inner">
+                  <CheckCircle2 className="w-9 h-9" />
                 </div>
                 
-                <div className="space-y-2">
-                  <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full uppercase tracking-wider font-mono">
-                    Účet úspěšně nastaven
+                <div className="space-y-1.5">
+                  <span className="inline-block px-2.5 py-0.5 bg-brand-50 text-brand-700 text-[10px] font-bold rounded-full uppercase tracking-widest font-mono border border-brand-100">
+                    Aktivace Dokončena
                   </span>
-                  <h3 className="text-2xl font-display font-bold text-neutral-950">
+                  <h3 className="text-xl font-display font-black text-stone-900 leading-tight">
                     Vítejte ve světě bez stresu!
                   </h3>
-                  <p className="text-sm text-neutral-500 max-w-sm mx-auto leading-relaxed">
-                    Váš zkušební kalendář pro podnikání <strong>&quot;{businessName}&quot;</strong> s balíčkem <strong>{initialPlanName}</strong> byl vytvořen. Na zadaný e-mail <strong>{email}</strong> jsme vám zaslali odkaz pro nastavení hesla.
+                  <p className="text-xs text-stone-500 max-w-xs mx-auto leading-relaxed font-semibold">
+                    Váš zkušební kalendář pro podnikání <strong className="text-stone-800 font-bold">&quot;{businessName}&quot;</strong> s balíčkem <strong className="text-brand-600">{initialPlanName}</strong> byl vytvořen. Na e-mail <strong>{email}</strong> jsme vám zaslali aktivační odkaz.
                   </p>
                 </div>
 
-                <div className="bg-neutral-50 p-4 rounded-2xl text-left border border-neutral-100 space-y-2">
-                  <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Co teď udělat:</p>
-                  <ul className="text-xs text-neutral-600 space-y-1.5 list-disc pl-4 leading-normal">
-                    <li>Otevřete e-mail a klikněte na aktivační odkaz.</li>
-                    <li>Přidejte své první služby a pracovní dobu.</li>
-                    <li>Sdílejte odkaz se svými stávajícími zákazníky, aby viděli, jak snadno to jde!</li>
+                <div className="bg-stone-50 p-4 rounded-2xl text-left border border-stone-200/60 space-y-2">
+                  <p className="text-[10px] font-bold text-stone-500 uppercase tracking-widest font-mono">Další kroky k pohodlí:</p>
+                  <ul className="text-xs text-stone-600 space-y-1.5 list-disc pl-4 leading-relaxed font-semibold">
+                    <li>Otevřete přihlašovací e-mail a zvolte si heslo.</li>
+                    <li>Nastavte své oblíbené služby a pracovní dobu.</li>
+                    <li>Pověste rezervační odkaz na web a Instagram!</li>
                   </ul>
                 </div>
 
-                <div className="pt-2 flex flex-col gap-2">
+                <div className="pt-1.5 flex flex-col gap-1.5">
                   <button
                     onClick={onClose}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 px-6 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 transition-all cursor-pointer"
+                    className="w-full bg-brand-600 hover:bg-brand-700 text-white py-3 px-5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition-all"
                   >
-                    Vstoupit do administrace
-                    <CalendarCheck className="w-4 h-4" />
+                    Otevřít Administraci
+                    <CalendarCheck className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => {
@@ -340,9 +340,9 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
                         setPhone("");
                         setName("");
                     }}
-                    className="text-xs font-bold text-neutral-400 hover:text-neutral-600 tracking-wider transition-all pt-1 cursor-pointer"
+                    className="text-[10px] font-bold text-stone-400 hover:text-stone-600 uppercase tracking-widest transition-all pt-1 cursor-pointer font-mono"
                   >
-                    Vytvořit partnerskou registraci pro jiný obor
+                    Vytvořit registraci pro jinou pobočku
                   </button>
                 </div>
               </div>
@@ -351,8 +351,8 @@ export default function LeadModal({ isOpen, onClose, initialPlanName = "Pro" }: 
           </div>
 
           {/* Dialog footer hint */}
-          <div className="bg-neutral-50 border-t border-neutral-100 px-6 py-3.5 text-center text-[11px] text-neutral-400 flex items-center justify-center gap-1.5">
-            <span>🔒 Šifrováno SSL přenosem bankovní úrovně</span>
+          <div className="bg-stone-100/50 border-t border-stone-200/80 px-6 py-3.5 text-center text-[10px] text-stone-500 flex items-center justify-center gap-1.5 font-bold">
+            <span>🛡️ Zabezpečení přenosu bankovní úrovně SSL / GDPR</span>
           </div>
 
         </div>

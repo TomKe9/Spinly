@@ -25,7 +25,8 @@ import {
   CheckCircle,
   Award,
   Menu,
-  X
+  X,
+  Wallet
 } from "lucide-react";
 
 import { INDUSTRIES, PRICING_PLANS, REVIEWS, FEATURES } from "./types";
@@ -44,10 +45,11 @@ import {
   onAuthStateChanged,
   updateProfile 
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import Dashboard from "./components/Dashboard";
 import ClientBookingPage from "./components/ClientBookingPage";
+import WalletModal from "./components/WalletModal";
 
 export default function App() {
   const [activeSegment, setActiveSegment] = useState(INDUSTRIES[0]);
@@ -58,13 +60,16 @@ export default function App() {
 
   // Multi-merchant state-based routing states
   const [view, setView] = useState<"landing" | "dashboard" | "client-booking">("landing");
+  const [landingSubView, setLandingSubView] = useState<"home" | "problém-řešení" | "funkce" | "cenik" | "faq">("home");
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>("default");
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   // Authentication dialog form states
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authAccountType, setAuthAccountType] = useState<"partner" | "customer">("partner");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authBusinessName, setAuthBusinessName] = useState("");
@@ -85,7 +90,7 @@ export default function App() {
   useEffect(() => {
     // If we've routed somewhere, scroll to top automatically
     window.scrollTo(0, 0);
-  }, [view]);
+  }, [view, landingSubView]);
 
   // Auth Operations
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -94,30 +99,61 @@ export default function App() {
     setAuthSubmitting(true);
     try {
       if (authMode === "register") {
-        if (!authBusinessName.trim()) {
-          setAuthError("Prosím vyplňte název provozovny.");
-          setAuthSubmitting(false);
-          return;
-        }
-        const credential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
-        
-        // Write initial Merchant Profile matching firestore.rules limitations
-        await setDoc(doc(db, "leads", credential.user.uid), {
-          businessName: authBusinessName.trim(),
-          segment: authSegment,
-          name: credential.user.displayName || "Nový partner",
-          email: authEmail,
-          phone: "+420 601 234 567",
-          plan: "Pro",
-          createdAt: serverTimestamp()
-        });
+        if (authAccountType === "partner") {
+          if (!authBusinessName.trim()) {
+            setAuthError("Prosím vyplňte název provozovny.");
+            setAuthSubmitting(false);
+            return;
+          }
+          const credential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+          // Write initial Merchant Profile matching firestore.rules limitations
+          await setDoc(doc(db, "leads", credential.user.uid), {
+            businessName: authBusinessName.trim(),
+            segment: authSegment,
+            name: credential.user.displayName || "Nový partner",
+            email: authEmail,
+            phone: "+420 601 234 567",
+            plan: "Pro",
+            walletBalance: 1000,
+            createdAt: serverTimestamp()
+          });
 
-        setIsLoginModalOpen(false);
-        setView("dashboard");
+          setIsLoginModalOpen(false);
+          setView("dashboard");
+        } else {
+          // Customer / Client account registration
+          const credential = await createUserWithEmailAndPassword(auth, authEmail, authPassword);
+          const emailPrefix = authEmail.split('@')[0];
+          const displayClientName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+
+          await setDoc(doc(db, "leads", credential.user.uid), {
+            businessName: "Osobní profil (Zákazník)",
+            segment: "customer",
+            name: displayClientName,
+            email: authEmail,
+            phone: "+420 601 234 567",
+            plan: "Uživatel",
+            walletBalance: 1000, // Pre-seeded with 1000 CZK bonus budget!
+            createdAt: serverTimestamp()
+          });
+
+          setIsLoginModalOpen(false);
+          setView("landing");
+          setIsWalletOpen(true); // Pop open wallet immediately so they can play with their money
+        }
       } else {
-        await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        const credential = await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        
+        // Quietly inspect their user record to decide view redirects
+        const profileSnap = await getDoc(doc(db, "leads", credential.user.uid));
         setIsLoginModalOpen(false);
-        setView("dashboard");
+        
+        if (profileSnap.exists() && profileSnap.data().segment === "customer") {
+          setView("landing");
+          setIsWalletOpen(true); // Open pre-paid wallet instantly upon user sign in! Excellent
+        } else {
+          setView("dashboard");
+        }
       }
     } catch (err: any) {
       console.error("Auth submit error:", err);
@@ -279,120 +315,156 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa] selection:bg-indigo-600 selection:text-white font-sans antialiased text-neutral-900 scroll-smooth">
+    <div className="min-h-screen bg-[#fbfbf9] text-stone-900 selection:bg-brand-100 selection:text-brand-900 font-sans antialiased scroll-smooth relative pb-10">
       
       {/* 1. Header Navigation Menu */}
-      <header className="sticky top-0 z-45 bg-white/90 backdrop-blur-md border-b border-neutral-100 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-[#fbfbf9]/95 backdrop-blur-md border-b border-stone-200/60 transition-all text-stone-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between relative">
           
           {/* Logo element matches humble branding rules */}
           <a 
             href="#" 
-            onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }} 
+            onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); setLandingSubView("home"); }} 
             className="flex items-center gap-2.5 hover:opacity-90 active:scale-98 transition-all shrink-0"
           >
-            <div className="bg-indigo-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold tracking-tight shadow-md shadow-indigo-150">
+            <div className="bg-brand-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold tracking-tight shadow-xs">
               <CalendarCheck className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <span className="text-2xl font-display font-extrabold tracking-tight text-neutral-950 flex items-center gap-1">
+            <span className="text-2xl font-display font-black tracking-tight text-stone-900 flex items-center gap-1">
               Spinly
-              <span className="text-xs bg-emerald-500/10 text-emerald-700 font-mono font-semibold px-2 py-0.5 rounded-full">CZ</span>
+              <span className="text-[10px] bg-brand-50 text-brand-700 font-mono font-bold px-2 py-0.5 rounded-full border border-brand-200">CZ</span>
             </span>
           </a>
 
-          {/* Desktop utility navigation list */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-neutral-600">
-            <a href="#problém-řešení" className="hover:text-indigo-600 transition-colors">Problém vs. Řešení</a>
-            <a href="#funkce" className="hover:text-indigo-600 transition-colors">Klíčové funkce</a>
-            <a href="#recenze" className="hover:text-indigo-600 transition-colors">Hodnocení</a>
-            <a href="#cenik" className="hover:text-indigo-600 transition-colors">Ceník</a>
-            <a href="#faq" className="hover:text-indigo-600 transition-colors">Časté dotazy</a>
-          </nav>
-
-          {/* Desktop Nav CTAs */}
-          <div className="hidden md:flex items-center gap-3">
-            {currentUser ? (
-              <button
-                onClick={() => setView(view === "dashboard" ? "landing" : "dashboard")}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-5 rounded-xl text-sm shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-              >
-                <Zap className="w-4 h-4 fill-white" />
-                {view === "dashboard" ? "Zpět na web" : "Administrace"}
-              </button>
-            ) : (
-              <>
-                <button 
-                  onClick={() => { setAuthMode("login"); setIsLoginModalOpen(true); }}
-                  className="text-neutral-500 hover:text-indigo-600 font-extrabold text-sm tracking-tight transition-all cursor-pointer"
-                >
-                  Vstup pro živnostníky
-                </button>
+          {/* Right Actions & Menu Trigger (All Screen Sizes) */}
+          <div className="flex items-center gap-3">
+            
+            {/* Wallet Quick Access Pill */}
+            <button
+              onClick={() => setIsWalletOpen(true)}
+              className="bg-stone-900 hover:bg-stone-850 text-[#d5af66] font-mono font-black py-2 px-3 sm:px-3.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-2 shadow-xs transition-all cursor-pointer border border-stone-850 outline-none hover:scale-[1.02]"
+            >
+              <Wallet className="w-3.5 h-3.5 shrink-0 text-[#d5af66]" />
+              <span>Peněženka</span>
+            </button>
+            
+            {/* Desktop Auth Actions - Visible only on MD and larger screens next to the menu */}
+            <div className="hidden md:flex items-center gap-2.5">
+              {currentUser ? (
                 <button
-                  onClick={() => { setAuthMode("register"); setIsLoginModalOpen(true); }}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-5 rounded-xl text-sm font-semibold shadow-xs transition-all active:scale-95 cursor-pointer"
+                  onClick={() => setView("dashboard")}
+                  className="bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-2 px-4 rounded-xl text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  Vyzkoušet zdarma
+                  <Zap className="w-4 h-4 fill-white text-white" />
+                  Vstup do administrace
                 </button>
-              </>
-            )}
-          </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setAuthMode("login");
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="text-stone-500 hover:text-stone-900 font-bold text-xs uppercase tracking-wider py-2 px-3.5 cursor-pointer transition-colors"
+                  >
+                    Přihlásit se
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAuthMode("register");
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-2 px-4 rounded-xl text-xs uppercase tracking-wider shadow-xs transition-all cursor-pointer"
+                  >
+                    Založit účet
+                  </button>
+                </>
+              )}
+            </div>
 
-          {/* Mobile & Tablet Toggle (Hamburger menu button / Tři čárky pod sebou) */}
-          <div className="flex md:hidden items-center gap-2">
+            {/* Hamburger / Menu Trigger - Visible across all screens */}
             <button
               onClick={() => setMobileMenuOpen(prev => !prev)}
               type="button"
-              className="p-2.5 rounded-xl hover:bg-neutral-100 text-neutral-700 transition-all border border-transparent hover:border-neutral-200 cursor-pointer flex items-center justify-center"
+              className="p-2.5 rounded-xl bg-stone-100 border border-stone-200 text-stone-700 transition-all hover:bg-stone-200/50 active:scale-95 cursor-pointer flex items-center gap-1.5 justify-center font-bold"
               aria-label="Menu"
             >
               {mobileMenuOpen ? (
-                <X className="w-6 h-6 stroke-[2]" />
+                <>
+                  <X className="w-5 h-5 stroke-[2.5]" />
+                  <span className="hidden sm:inline text-xs uppercase tracking-wider font-extrabold">Zavřít</span>
+                </>
               ) : (
-                <Menu className="w-6 h-6 stroke-[2]" />
+                <>
+                  <Menu className="w-5 h-5 stroke-[2.5]" />
+                  <span className="hidden sm:inline text-xs uppercase tracking-wider font-extrabold">Menu</span>
+                </>
               )}
             </button>
           </div>
 
         </div>
 
-        {/* Elegant Animated Dropdown Mobile Drawer Overlay & Sheet */}
+        {/* Elegant Animated Dropdown Drawer Overlay & Sheet for Mobile & Desktop */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-neutral-100 bg-white/95 backdrop-blur-lg absolute w-full left-0 shadow-xl z-50 animate-slideUp">
-            <div className="px-4 py-6 space-y-6">
+          <div className="border border-stone-200 bg-[#fbfbf9]/98 backdrop-blur-xl absolute top-[calc(100%-8px)] right-4 sm:right-6 lg:right-8 left-4 md:left-auto md:w-80 rounded-2xl shadow-xl z-50 animate-slideUp overflow-hidden">
+            <div className="p-5 space-y-5">
               
               {/* Vertical stacked link paths */}
-              <nav className="flex flex-col gap-4 font-semibold text-neutral-700">
+              <nav className="flex flex-col gap-2 font-bold text-stone-650">
                 {[
-                  { href: "#problém-řešení", label: "Problém vs. Řešení" },
-                  { href: "#funkce", label: "Klíčové funkce" },
-                  { href: "#recenze", label: "Hodnocení" },
-                  { href: "#cenik", label: "Ceník" },
-                  { href: "#faq", label: "Časté dotazy" }
-                ].map((l) => (
-                  <a
-                    key={l.href}
-                    href={l.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="hover:text-indigo-600 text-base py-1.5 border-b border-neutral-50 px-1 transition-colors flex items-center justify-between"
-                  >
-                    <span>{l.label}</span>
-                    <span className="text-neutral-300 text-sm">→</span>
-                  </a>
-                ))}
+                  { id: "home", label: "Úvod" },
+                  { id: "problém-řešení", label: "Problém vs. Řešení" },
+                  { id: "funkce", label: "Klíčové funkce" },
+                  { id: "cenik", label: "Ceník" },
+                  { id: "faq", label: "Časté dotazy" }
+                ].map((l) => {
+                  const isActive = landingSubView === l.id;
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => {
+                        setLandingSubView(l.id as any);
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`text-sm py-2 px-2 rounded-lg transition-all flex items-center justify-between font-semibold w-full text-left cursor-pointer ${
+                        isActive 
+                          ? "bg-brand-50 text-brand-700 font-extrabold" 
+                          : "hover:bg-stone-50 hover:text-stone-900"
+                      }`}
+                    >
+                      <span>{l.label}</span>
+                      <span className={isActive ? "text-brand-500 font-extrabold" : "text-stone-400 text-xs"}>
+                        {isActive ? "•" : "→"}
+                      </span>
+                    </button>
+                  );
+                })}
               </nav>
 
-              {/* Action items stacked */}
-              <div className="flex flex-col gap-3 pt-3">
+              {/* Action items stacked (shows auth actions natively inside drawer too for convenience/mobile) */}
+              <div className="flex flex-col gap-2 pt-2 border-t border-[#e2e2df]">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setIsWalletOpen(true);
+                  }}
+                  className="w-full bg-[#fbfbf9] hover:bg-stone-50 text-stone-900 border border-stone-300 font-extrabold py-2.5 px-4 rounded-xl text-center shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 text-xs uppercase tracking-wider mb-1"
+                >
+                  <Wallet className="w-4 h-4 text-brand-600 shrink-0" />
+                  Spinly Pay Peněženka
+                </button>
+
                 {currentUser ? (
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
-                      setView(view === "dashboard" ? "landing" : "dashboard");
+                      setView("dashboard");
                     }}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-5 rounded-2xl text-center shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-4 rounded-xl text-center transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow-xs"
                   >
-                    <Zap className="w-4 h-4 fill-white" />
-                    {view === "dashboard" ? "Zpět na hlavní web" : "Otevřít Administraci"}
+                    <Zap className="w-4 h-4 fill-white text-white" />
+                    Otevřít Administraci
                   </button>
                 ) : (
                   <>
@@ -401,10 +473,10 @@ export default function App() {
                         setMobileMenuOpen(false);
                         setAuthMode("register");
                         setIsLoginModalOpen(true);
-                      }}
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-5 rounded-2xl text-center shadow-md shadow-indigo-150 transition-all active:scale-95 cursor-pointer text-sm"
+                       }}
+                      className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-2.5 px-4 rounded-xl text-center shadow-xs transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider"
                     >
-                      Zaregistrovat se zdarma
+                      Zaregistrovat podnik zdarma
                     </button>
                     <button
                       onClick={() => {
@@ -412,9 +484,9 @@ export default function App() {
                         setAuthMode("login");
                         setIsLoginModalOpen(true);
                       }}
-                      className="w-full bg-slate-100 hover:bg-slate-250 text-slate-800 font-bold py-3 px-5 rounded-2xl text-center transition-all active:scale-95 cursor-pointer text-sm"
+                      className="w-full bg-white hover:bg-stone-50 text-stone-750 border border-stone-300 font-bold py-2.5 px-4 rounded-xl text-center transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider"
                     >
-                      Vstoupit do účtu (Přihlášení)
+                      Přihlásit se
                     </button>
                   </>
                 )}
@@ -425,28 +497,26 @@ export default function App() {
         )}
       </header>
 
-      {/* 2. Hero Section */}
-      <section className="relative overflow-hidden pt-10 pb-16 lg:pt-16 lg:pb-24 border-b border-neutral-100">
-        
-        {/* Vector Background Accents */}
-        <div className="absolute top-1/4 -left-36 w-96 h-96 bg-indigo-200/20 rounded-full blur-3xl -z-10" />
-        <div className="absolute top-1/12 -right-36 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl -z-10" />
-
+      {/* LANDING SUB PAGES SWITCHER */}
+      {landingSubView === "home" && (
+        <>
+          {/* 2. Hero Section */}
+          <section className="relative overflow-hidden pt-10 pb-16 lg:pt-16 lg:pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Segment fast personalized toggles */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 mb-8">
-            <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest mr-2">Váš obor:</span>
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mr-2 font-mono">Váš obor:</span>
             {INDUSTRIES.map((ind) => {
               const isSelected = activeSegment.id === ind.id;
               return (
                 <button
                   key={ind.id}
                   onClick={() => setActiveSegment(ind)}
-                  className={`py-2 px-3.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`py-2 px-3.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                     isSelected 
-                      ? "bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold scale-[1.03]" 
-                      : "bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-800"
+                      ? "bg-brand-600 border-brand-500 text-white font-extrabold scale-[1.03] shadow-xs" 
+                      : "bg-white border-stone-200 text-stone-605 hover:border-stone-300 hover:text-stone-850"
                   }`}
                 >
                   <span className="text-sm">
@@ -466,55 +536,55 @@ export default function App() {
           <div className="text-center max-w-4xl mx-auto mb-14">
             
             {/* Super tag */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-500/5 text-indigo-700 text-xs font-bold rounded-full uppercase tracking-wider mb-5 border border-indigo-500/10 hover:bg-indigo-500/10 transition-colors animate-pulse">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              Více rezervací, méně prázdných termínů
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-brand-50 text-brand-700 text-[10px] font-bold rounded-full uppercase tracking-widest mb-6 border border-brand-200">
+              <Sparkles className="w-3.5 h-3.5 text-brand-555" />
+              Slovenský a Český špičkový SaaS systém
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-extrabold tracking-tight text-neutral-950 leading-tight lg:leading-none">
+            <h1 className="text-3xl sm:text-5xl lg:text-7xl font-display font-black tracking-tight text-stone-900 leading-none">
               {currentCopy.h1}
             </h1>
             
-            <p className="mt-6 text-lg sm:text-xl text-neutral-600 max-w-3xl mx-auto leading-relaxed">
-              {currentCopy.sub} Nechte své zákazníky rezervovat se <strong>samy 24/7</strong> přímo z webu nebo Instagramu. Ušetřete hodiny s automatickými <strong>SMS připomínkami</strong>.
+            <p className="mt-6 text-sm sm:text-base text-stone-500 max-w-2xl mx-auto leading-relaxed font-semibold">
+              {currentCopy.sub} Nechte své zákazníky rezervovat se <strong className="text-stone-800">samy 24/7</strong> bez nutnosti telefonování. Ušetřete až 12 hodin týdně díky automatizovaným <strong className="text-stone-850">dvoucestným SMS</strong>.
             </p>
 
             {/* Main Action Buttons */}
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={() => openLeadForPlan("Pro")}
-                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-4 rounded-xl text-base shadow-lg shadow-indigo-100 flex items-center justify-center gap-2 group transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                className="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white font-bold px-8 py-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all transform hover:-translate-y-0.5 cursor-pointer shadow-md"
               >
                 Vyzkoušet Spinly zdarma
-                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4" />
               </button>
               
               <a 
                 href="#demo-showcase"
                 onClick={scrollToDemo}
-                className="w-full sm:w-auto bg-white border border-neutral-250 text-neutral-700 hover:bg-neutral-50 hover:text-neutral-900 font-semibold px-8 py-4 rounded-xl text-base flex items-center justify-center gap-1.5 transition-all text-center"
+                className="w-full sm:w-auto bg-white border border-stone-250 text-stone-705 hover:bg-stone-50 font-bold px-8 py-4 rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-xs"
               >
-                <Clock className="w-5 h-5 text-neutral-400" />
+                <Clock className="w-4 h-4 text-brand-600 animate-pulse" />
                 Jak to funguje? (Ukázka)
               </a>
             </div>
 
             {/* Badges footer info */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-neutral-500">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xxs font-bold text-stone-400 uppercase tracking-widest font-mono">
               <span className="flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-500 stroke-[3]" /> Vyzkoušení na 14 dní zdarma
+                <Check className="w-3.5 h-3.5 text-brand-600 stroke-[3]" /> 14 dní zdarma na zkoušku
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-500 stroke-[3]" /> Bez vkládání platební karty
+                <Check className="w-3.5 h-3.5 text-brand-600 stroke-[3]" /> Bez vkládání platební karty
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-emerald-500 stroke-[3]" /> Nastavení hotové za 5 minut
+                <Check className="w-3.5 h-3.5 text-brand-600 stroke-[3]" /> Rychlé nastavení za 5 min
               </span>
             </div>
           </div>
 
           {/* Interactive Demo Block matches premium craft guidelines */}
-          <div className="mt-12">
+          <div className="mt-12 group transition-all duration-300">
             <InteractiveShowcase />
           </div>
 
@@ -522,75 +592,79 @@ export default function App() {
       </section>
 
       {/* 3. Social Proof Stats Row */}
-      <section className="bg-white border-b border-neutral-100 py-10">
+      <section className="py-12 border-y border-stone-200/60 bg-stone-50/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
             
-            <div className="p-4">
-              <p className="text-3xl md:text-4xl font-display font-extrabold text-indigo-600">
+            <div className="p-2 relative">
+              <p className="text-3xl md:text-5xl font-display font-black text-brand-700 tracking-tight">
                 {bookingCounter.toLocaleString("cs-CZ")}
               </p>
-              <p className="text-xs md:text-sm font-semibold text-neutral-500 uppercase tracking-wider mt-1.5 flex items-center justify-center gap-1">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 flex items-center justify-center gap-1.5 font-mono">
+                <span className="w-2 h-2 bg-brand-500 rounded-full animate-ping" />
                 Celkem rezervací
               </p>
             </div>
 
-            <div className="p-4">
-              <p className="text-3xl md:text-4xl font-display font-extrabold text-indigo-600">-92 %</p>
-              <p className="text-xs md:text-sm font-semibold text-neutral-500 uppercase tracking-wider mt-1.5">Zapomenutých termínů</p>
+            <div className="p-2">
+              <p className="text-3xl md:text-5xl font-display font-black text-brand-700 tracking-tight">-92 %</p>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 font-mono">Zapomenutých schůzek</p>
             </div>
 
-            <div className="p-4">
-              <p className="text-3xl md:text-4xl font-display font-extrabold text-indigo-600">10+ hod</p>
-              <p className="text-xs md:text-sm font-semibold text-neutral-500 uppercase tracking-wider mt-1.5">Ušetřeného času týdně</p>
+            <div className="p-2">
+              <p className="text-3xl md:text-5xl font-display font-black text-brand-700 tracking-tight">12+ hod</p>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 font-mono">Ušetřeného času týdně</p>
             </div>
 
-            <div className="p-4">
-              <p className="text-3xl md:text-4xl font-display font-extrabold text-indigo-600">99.8 %</p>
-              <p className="text-xs md:text-sm font-semibold text-neutral-500 uppercase tracking-wider mt-1.5">Doručitelnost SMS</p>
+            <div className="p-2">
+              <p className="text-3xl md:text-5xl font-display font-black text-brand-700 tracking-tight">99.8 %</p>
+              <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-2 font-mono">Spolehlivost SMS</p>
             </div>
 
           </div>
         </div>
       </section>
+        </>
+      )}
 
-      {/* 4. PAS - Problem vs Solution Section */}
-      <section id="problém-řešení" className="py-20 lg:py-28 bg-[#fdfdfd] border-b border-neutral-100">
+      {landingSubView === "problém-řešení" && (
+        <>
+          {/* 4. PAS - Problem vs Solution Section */}
+          <section id="problém-řešení" className="py-20 lg:py-28 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
-              Konec staré éry
+            <span className="text-[10px] font-bold text-brand-700 uppercase tracking-widest bg-brand-50 px-3.5 py-1.5 rounded-full border border-brand-200 font-mono">
+              Tradiční Chaos vc. Moderní Klid
             </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-neutral-950 mt-3 tracking-tight">
-              Proč stále plánovat služby ručně a ztrácet peníze?
+            <h2 className="text-2xl sm:text-4xl font-display font-black text-stone-900 mt-4 tracking-tight">
+              Proč stále plánovat služby ručně a ztrácet čas i peníze?
             </h2>
-            <p className="text-neutral-500 mt-4 leading-relaxed">
-              Zvonící telefony uprostřed rozdělané práce, zapomenuté termíny a přeplněný, nečitelný papírový diář. Tam venku je zbytečný chaos. Spinly vám vrátí plnou kontrolu.
+            <p className="text-stone-500 text-xs md:text-sm mt-3 max-w-2xl mx-auto leading-relaxed font-semibold">
+              Zvonící telefony uprostřed rozdělané práce, zapomenuté termíny a přeplněný, nečitelný papírový diář. Tam venku je zbytečný zmatek. Spinly vám vrátí stoprocentní kontrolu.
             </p>
 
-            {/* Mobile Tab switcher for PAS elements */}
-            <div className="inline-flex mt-8 p-1.5 bg-neutral-100 rounded-xl">
+            {/* Selector for PAS elements */}
+            <div className="inline-flex mt-8 p-1 bg-stone-100 border border-stone-200 rounded-xl">
               <button
                 onClick={() => setPasTab("chaos")}
-                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-5 py-2 rounded-lg text-xxs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   pasTab === "chaos" 
-                    ? "bg-rose-500 text-white shadow-xs" 
-                    : "text-neutral-600 hover:text-neutral-900"
+                    ? "bg-rose-50 text-rose-700 border border-rose-200/80 font-black" 
+                    : "text-stone-500 hover:text-stone-850"
                 }`}
               >
-                Tradiční cesta (Chaos ❌)
+                Tradiční cesta (Chaos)
               </button>
               <button
                 onClick={() => setPasTab("spinly")}
-                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-5 py-2 rounded-lg text-xxs font-bold uppercase tracking-wider transition-all cursor-pointer ${
                   pasTab === "spinly" 
-                    ? "bg-emerald-600 text-white shadow-xs" 
-                    : "text-neutral-600 hover:text-neutral-900"
+                    ? "bg-brand-600 text-white font-black" 
+                    : "text-stone-500 hover:text-stone-850"
                 }`}
               >
-                Cesta se Spinly (Klid ✅)
+                Cesta se Spinly (Klid)
               </button>
             </div>
           </div>
@@ -599,41 +673,41 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             
             {/* Column A: Chaos Path */}
-            <div className={`border rounded-3xl p-6 md:p-8 transition-all duration-300 bg-white ${
+            <div className={`border rounded-3xl p-6 md:p-8 transition-all duration-300 ${
               pasTab === "chaos" 
-                ? "border-rose-200 ring-2 ring-rose-100/50 scale-[1.01]" 
-                : "border-neutral-150 opacity-40 hover:opacity-100"
+                ? "border-rose-300 bg-rose-50/20 ring-1 ring-rose-250/20 scale-[1.01]" 
+                : "border-stone-200 bg-white opacity-40 hover:opacity-100"
             }`}>
-              <div className="flex items-center gap-3 border-b border-rose-50 pb-4 mb-6">
-                <div className="bg-rose-50 text-rose-600 p-2.5 rounded-xl">
-                  <AlertCircle className="w-5 h-5" />
+              <div className="flex items-center gap-3 border-b border-rose-100 pb-4 mb-6">
+                <div className="bg-rose-50 text-rose-600 p-2.5 rounded-xl border border-rose-100">
+                  <AlertCircle className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-bold text-neutral-900 font-display">Papírové a ruční plánování</h4>
-                  <p className="text-xs text-rose-600 font-semibold uppercase">Ztrácí čas a snižuje tržby</p>
+                  <h4 className="text-base font-bold text-stone-900 font-display">Papírové a ruční plánování</h4>
+                  <p className="text-[10px] text-rose-600 font-mono font-bold uppercase tracking-wider">Ztrácí čas a tržby</p>
                 </div>
               </div>
 
               <ul className="space-y-4">
                 {[
                   {
-                    title: "Zákazníci zapomínají",
-                    text: "Klienti si nezapíšou termín, spletou si datum a prostě nedorazí. Vaše křeslo zůstává prázdné a vy přicházíte o tržbu."
+                    title: "Zákazníci zapomínají schůzky",
+                    text: "Klienti si nezapíšou termín, spletou si datum a nedorazí. Vaše židle zůstává prázdná a tržba je navždy pryč."
                   },
                   {
-                    title: "Neustálá vyrušení",
-                    text: "Během stříhání nebo masáže vám neustále zvoní telefon. Musíte přerušit práci nebo riskovat, že ztratíte nového klienta."
+                    title: "Uvolněné chvilky rušeny zprávami",
+                    text: "Během stříhání nebo masáže neustále drnčí telefon. Musíte pokaždé přerušit klienta nebo naopak riskovat ztrátu nového."
                   },
                   {
-                    title: "Diář pouze na jednom místě",
-                    text: "Nemáte přístup k rozvrhu z domova nebo na cestách. Když chce klient změnit čas večer o víkendu, musíte počkat do pondělí do salonu."
+                    title: "Diář uzamčený v budově salonu",
+                    text: "Nemáte přístup k diáři z domu ani na cestách. Když chce zákazník změnit čas o víkendu, musíte jet do salonu."
                   }
                 ].map((item, index) => (
                   <li key={index} className="flex gap-3">
-                    <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-500 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">✕</span>
+                    <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-600 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 border border-rose-150">✕</span>
                     <div>
-                      <strong className="block text-sm font-bold text-neutral-800">{item.title}</strong>
-                      <span className="text-xs text-neutral-500 mt-0.5 block leading-normal">{item.text}</span>
+                      <strong className="block text-xs uppercase tracking-wide text-rose-800 font-extrabold">{item.title}</strong>
+                      <span className="text-xs text-stone-500 mt-0.5 block leading-relaxed font-semibold">{item.text}</span>
                     </div>
                   </li>
                 ))}
@@ -641,41 +715,41 @@ export default function App() {
             </div>
 
             {/* Column B: Spinly Path */}
-            <div className={`border rounded-3xl p-6 md:p-8 transition-all duration-300 bg-white ${
+            <div className={`border rounded-3xl p-6 md:p-8 transition-all duration-300 ${
               pasTab === "spinly" 
-                ? "border-emerald-200 ring-2 ring-emerald-100/50 scale-[1.01]" 
-                : "border-neutral-150 opacity-40 hover:opacity-100"
+                ? "border-brand-300 bg-brand-50/15 ring-2 ring-brand-500/10 scale-[1.01]" 
+                : "border-stone-200 bg-white opacity-40 hover:opacity-100"
             }`}>
-              <div className="flex items-center gap-3 border-b border-emerald-50 pb-4 mb-6">
-                <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-xl">
-                  <ShieldCheck className="w-5 h-5" />
+              <div className="flex items-center gap-3 border-b border-stone-100 pb-4 mb-6">
+                <div className="bg-brand-50 text-brand-700 p-2.5 rounded-xl border border-brand-100">
+                  <ShieldCheck className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-bold text-neutral-900 font-display">Automatizace se Spinly</h4>
-                  <p className="text-xs text-emerald-600 font-semibold uppercase">Klidu, pořádek a jistota</p>
+                  <h4 className="text-base font-bold text-stone-900 font-display">Automatizace se Spinly</h4>
+                  <p className="text-[10px] text-brand-700 font-mono font-bold uppercase tracking-wider">Klid, pořádek a jistota</p>
                 </div>
               </div>
 
               <ul className="space-y-4">
                 {[
                   {
-                    title: "Zapomenuté termíny jsou minulostí",
-                    text: "Samoobslužný inteligentní SMS asistent pošle přesné potvrzení a připomínku. Lidé přicházejí včas a vy vyděláváte."
+                    title: "No-show problém stoprocentně vyřešen",
+                    text: "Chytrý SMS asistent pošle přesné potvrzení a připomínku. Lidé chodí přesně a vy vyděláváte každou hodinu."
                   },
                   {
-                    title: "Nepřetržitá rezervace i v noci",
-                    text: "Více než 45 % klientů se objednává večer, o víkendu nebo v noci, když máte zavřeno. Spinly pracuje pro vás 24 hodin denně."
+                    title: "Rezervování pokračuje, i když spíte",
+                    text: "Více než 45 % klientů se objednává večer, o víkendu nebo v noci, když u vás nesvítí světlo. Spinly pracuje 24/7."
                   },
                   {
-                    title: "Kalendář v mobilu kdekoli",
-                    text: "Přehledný plán máte v telefonu, tabletu i počítači. Okamžitě víte, jaká je vaše vytíženost a kolik jste si vydělali."
+                    title: "Kalendář nonstop s vámi",
+                    text: "Mobilní rozhraní vás propojí přímo z domu, z pláže i z tramvaje. Vždy víte, kolik si zítra vyděláte peněz."
                   }
                 ].map((item, index) => (
                   <li key={index} className="flex gap-3">
-                    <span className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">✓</span>
+                    <span className="w-5 h-5 rounded-full bg-brand-50 text-brand-650 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 border border-brand-200 font-extrabold">✓</span>
                     <div>
-                      <strong className="block text-sm font-bold text-neutral-800">{item.title}</strong>
-                      <span className="text-xs text-neutral-500 mt-0.5 block leading-normal">{item.text}</span>
+                      <strong className="block text-xs uppercase tracking-wide text-brand-850 font-extrabold">{item.title}</strong>
+                      <span className="text-xs text-stone-500 mt-0.5 block leading-relaxed font-semibold">{item.text}</span>
                     </div>
                   </li>
                 ))}
@@ -687,96 +761,77 @@ export default function App() {
           {/* Srovnání s konkurencí aneb Proč Spinly nemá konkurenci */}
           <div className="mt-24 space-y-12">
             <div className="text-center max-w-3xl mx-auto space-y-3">
-              <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3.5 py-1.5 rounded-full border border-indigo-100">
-                Nemáme konkurenci
+              <span className="text-[10px] font-bold text-brand-705 uppercase tracking-widest bg-brand-50 px-3.5 py-1.5 rounded-full border border-brand-200 font-mono">
+                Srovnávací tabulka
               </span>
-              <h3 className="text-2xl sm:text-3xl font-display font-extrabold text-neutral-950 tracking-tight">
-                Jak si vede Spinly ve srovnání s ostatními?
+              <h3 className="text-2xl sm:text-3xl font-display font-black text-stone-900 tracking-tight">
+                V čem se Spinly liší od konkurence?
               </h3>
-              <p className="text-neutral-500 text-sm leading-relaxed">
-                Navrhli jsme rezervační systém tak, aby vyřešil největší nedostatky starých těžkopádných kalendářů a vrátil vám radost z podnikání.
+              <p className="text-stone-500 text-xs md:text-sm leading-relaxed max-w-xl mx-auto font-semibold">
+                Navrhli jsme celý systém tak, aby odboural složité registrace a fungoval tak hladce a rychle, jak je to v roce 2026 technicky možné.
               </p>
             </div>
 
             {/* Premium Interactive Comparison Grid */}
-            <div className="max-w-5xl mx-auto bg-white border border-neutral-150 rounded-3xl overflow-hidden shadow-2xl relative">
-              <div className="absolute top-0 right-0 p-16 bg-indigo-600/5 rounded-full blur-2xl -z-10" />
+            <div className="max-w-5xl mx-auto bg-white border border-stone-200/60 rounded-3xl overflow-hidden shadow-xs relative">
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
-                    <tr className="border-b border-neutral-150 bg-slate-50/50">
-                      <th className="py-5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/3">Vlastnost / Funkce</th>
-                      <th className="py-5 px-6 text-sm font-extrabold text-indigo-700 bg-indigo-50/40 relative">
-                        <span className="absolute top-0 inset-x-0 h-1 bg-indigo-600" />
+                    <tr className="border-b border-stone-200 bg-stone-50/60">
+                      <th className="py-5 px-6 text-[10px] font-bold text-stone-400 uppercase tracking-widest w-1/3 font-mono">Vlastnost / Funkce</th>
+                      <th className="py-5 px-6 text-xs font-bold text-brand-700 bg-brand-50/30 relative">
+                        <span className="absolute top-0 inset-x-0 h-0.5 bg-brand-600" />
                         ✨ Spinly (Moderní kalendář)
                       </th>
-                      <th className="py-5 px-6 text-xs font-bold text-neutral-500">Běžné složité kalendáře</th>
-                      <th className="py-5 px-6 text-xs font-bold text-neutral-500">Papírový diář</th>
+                      <th className="py-5 px-6 text-[10px] font-bold text-stone-405 uppercase tracking-widest font-mono">Staré složité kalendáře</th>
+                      <th className="py-5 px-6 text-[10px] font-bold text-stone-405 uppercase tracking-widest font-mono">Papírový diář</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-neutral-100 text-sm">
+                  <tbody className="divide-y divide-stone-150 text-xs">
                     {[
                       {
-                        feat: "Rychlá rezervace pro klienty",
-                        spinly: "Ano, na 3 kliknutí (do 12 sekund). Bez nutnosti zbytečného zakládání účtů nebo hesel předem.",
-                        spinlyOk: true,
-                        legacy: "Složitá registrace se schvalováním e-mailu před výběrem času.",
-                        papir: "Pouze ručně při zvednutí telefonu uprostřed práce."
+                        feat: "Rychlost a jednoduchost pro klienty",
+                        spinly: "Rezervace na 3 kliknutí (do 12 sekund). Bez nucených registrací a pamatování hesel.",
+                        legacy: "Složité vytváření profilů a ověřování e-mailu předem.",
+                        papir: "Nutnost zdlouhavě volat, hledat termín v sešitu."
                       },
                       {
-                        feat: "Onboarding & Výrazy dle oboru",
-                        spinly: "Ano. Modulární kalendář se sám na 1 kliknutí nastaví – místo 'Assetu' vidíte 'Dvorec', 'Služba' nebo 'Křeslo'.",
-                        spinlyOk: true,
-                        legacy: "Univerzální, s nejasným a těžkopádným cizím názvoslovím.",
-                        papir: "Jen obyčejný prázdný sešit s ručními popisky."
+                        feat: "Terminologie ušitá na míru oboru",
+                        spinly: "Modulární šablony – kadeřnice vidí kadeřnice, tenisový klub hřiště, fyzioterapeut terapeuta.",
+                        legacy: "Zastaralé univerzální názvosloví, které mate zákazníky.",
+                        papir: "Záleží čistě na tom, jak úhledně si to sami nadepíšete."
                       },
                       {
-                        feat: "No-show SMS automatizace",
-                        spinly: "Ano. Dvoucestné automatické SMS i přes WhatsApp doručované s 99.8% spolehlivostí.",
-                        spinlyOk: true,
-                        legacy: "Pouze e-maily, které zapadnou do složky Spam.",
-                        papir: "Nemožné bez úmorného ručního obvolávání večer."
+                        feat: "SMS a WhatsApp připomínky",
+                        spinly: "Automatické upomínky doručované s 99.8% úspěšností.",
+                        legacy: "Pouze zapadající maily, nebo drahé SMS s nutností nákupu kreditů.",
+                        papir: "Úplně chybí. Hrozí prázdný čas."
                       },
                       {
-                        feat: "Obousměrná live synchronizace",
-                        spinly: "Ano. Okamžitý přenos z vašeho Google i Apple Kalendáře v obou směrech bez zpoždění.",
-                        spinlyOk: true,
-                        legacy: "Často chybí, nebo s pomalým časovým odstupem několika hodin.",
-                        papir: "Nemožné. Neustálé riziko překryvů."
-                      },
-                      {
-                        feat: "Technická podpora v češtině",
-                        spinly: "Ano. Osobní a telefonická asistence s nastavením systému zcela zdarma a lidsky.",
-                        spinlyOk: true,
-                        legacy: "Pouze e-maily v anglickém jazyce s odpovědí do 3 dnů.",
-                        papir: "Není."
-                      },
-                      {
-                        feat: "Rychlost načítání & Plynulost",
-                        spinly: "Přednačteno do 1.2 sekundy s pohlcujícími mikroanimacemi. Bez čekání a bílých obrazovek.",
-                        spinlyOk: true,
-                        legacy: "Pomalé stahování zastaralých rozhraní, těžké skripty.",
-                        papir: "Okamžité otevření sešitu, ale hrozí ztráta politím."
+                        feat: "Osobní asistence s nastavením v češtině",
+                        spinly: "Telefonická podpora zdarma. Naši specialisté vám pomohou vše vyladit.",
+                        legacy: "Neosobní e-mailová podpora v cizím jazyce, odpovědi trvají dny.",
+                        papir: "Záleží jen na vás."
                       }
                     ].map((row, idx) => (
-                      <tr key={idx} className="hover:bg-neutral-50/70 transition-colors">
-                        <td className="py-4.5 px-6 font-bold text-neutral-800 text-xs sm:text-sm">{row.feat}</td>
-                        <td className="py-4.5 px-6 font-medium text-indigo-950 bg-indigo-50/20 text-xs sm:text-sm">
+                      <tr key={idx} className="hover:bg-stone-50/50 transition-colors">
+                        <td className="py-4.5 px-6 font-bold text-stone-900 text-xs">{row.feat}</td>
+                        <td className="py-4.5 px-6 font-semibold text-brand-850 bg-brand-50/15">
                           <div className="flex items-start gap-2">
-                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">✓</span>
+                            <span className="w-4 h-4 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center shrink-0 font-extrabold border border-brand-200 text-[10px]">✓</span>
                             <span>{row.spinly}</span>
                           </div>
                         </td>
-                        <td className="py-4.5 px-6 text-neutral-500 text-xs">
+                        <td className="py-4.5 px-6 text-stone-500 text-xs font-semibold">
                           <div className="flex items-start gap-1.5">
-                            <span className="text-amber-500 text-md shrink-0 mt-0.5">⚠️</span>
+                            <span className="text-amber-600 text-[11px] shrink-0">⚠️</span>
                             <span>{row.legacy}</span>
                           </div>
                         </td>
-                        <td className="py-4.5 px-6 text-neutral-400 text-xs">
+                        <td className="py-4.5 px-6 text-stone-500 text-xs font-semibold">
                           <div className="flex items-start gap-1.5">
-                            <span className="text-rose-500 text-md shrink-0 mt-0.5">✕</span>
+                            <span className="text-rose-500 text-[11px] shrink-0">✕</span>
                             <span>{row.papir}</span>
                           </div>
                         </td>
@@ -786,65 +841,84 @@ export default function App() {
                 </table>
               </div>
 
-              <div className="bg-neutral-900 text-neutral-300 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-                <span className="font-semibold text-white">✨ Chcete nejlepší rezervační systém v Česku?</span>
+              <div className="bg-stone-50 text-[#555552] p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs border-t border-stone-200">
+                <span className="font-bold text-stone-900">🔥 Připojte se ke stovkám úspěšných CZ a SK studií již dnes!</span>
                 <button
                   type="button"
                   onClick={() => openLeadForPlan("Pro")}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all cursor-pointer animate-pulse shrink-0"
+                  className="bg-brand-600 hover:bg-brand-700 text-white font-black py-2.5 px-6 rounded-xl transition-all cursor-pointer text-xxs uppercase tracking-wider shadow-sm"
                 >
-                  Začít používat Spinly hned teď
+                  Začít používat Spinly teď
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Central bottom value statement block */}
-          <div className="mt-16 bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center max-w-3xl mx-auto">
-            <p className="text-sm text-indigo-900 leading-relaxed">
-              💡 <strong>Statistika z praxe:</strong> Podnikatelé v Česku, kteří přešli z papírového kalendáře na rezervační odkaz Spinly, zaznamenali v průměru <strong>nárůst objednávek o 24 %</strong> hned během prvních dvou měsíců.
+          <div className="mt-12 bg-brand-50/30 border border-brand-100 rounded-2xl p-5 text-center max-w-3xl mx-auto">
+            <p className="text-xs text-brand-850 leading-relaxed font-semibold">
+              💡 <strong>Statistický fakt z praxe:</strong> Salony přecházející na rezervační systém Spinly hlásí v průměru <strong>24% nárůst tržeb</strong> hned v prvních dvou měsících díky automatizovanému vyplňování zrušených časů.
             </p>
+          </div>
+
+          {/* Section Navigation Buttons */}
+          <div className="mt-16 text-center flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+            <button
+              onClick={() => { setLandingSubView("funkce"); }}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider shadow-sm cursor-pointer"
+            >
+              Pokračovat na Klíčové funkce →
+            </button>
+            <button
+              onClick={() => { setLandingSubView("home"); }}
+              className="w-full bg-white border border-stone-200 text-stone-605 hover:bg-stone-50 font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Zpět na úvod
+            </button>
           </div>
 
         </div>
       </section>
+        </>
+      )}
 
-      {/* 5. Key Features Grid */}
-      <section id="funkce" className="py-20 lg:py-28 bg-white border-b border-neutral-100">
+      {landingSubView === "funkce" && (
+        <>
+          {/* 5. Key Features Grid */}
+          <section id="funkce" className="py-16 lg:py-24 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
-              Bohaté funkce
+            <span className="text-[10px] font-bold text-brand-700 uppercase tracking-widest bg-brand-50 px-3.5 py-1.5 rounded-full border border-brand-200 font-mono">
+              Kompletní výbava
             </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-neutral-950 mt-3 tracking-tight">
-              Vše, co potřebujete v jedné aplikaci
+            <h2 className="text-2xl sm:text-4xl font-display font-black text-stone-900 mt-4 tracking-tight">
+              Všechny funkce pro váš růst v jedné appce
             </h2>
-            <p className="text-neutral-500 mt-3">
-              Konec složitého instalování. Spinly je webová aplikace připravená pro provoz ihned bez nutnosti stahování z App Store.
+            <p className="text-stone-500 text-xs md:text-sm mt-3 font-semibold">
+              Zapomeňte na instalaci složitých programů. Spinly je blesková webová platforma plně připravená pro provoz na mobilu i počítači.
             </p>
           </div>
 
           {/* Features Grid layout block */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {FEATURES.map((feat) => {
               return (
                 <div 
                   key={feat.id}
-                  className="bg-[#fafafa] hover:bg-white border border-neutral-100 hover:border-neutral-200 p-6 md:p-8 rounded-2xl transition-all hover:scale-[1.01] hover:shadow-lg hover:shadow-neutral-100/50 group"
+                  className="bg-white hover:bg-brand-50/10 border border-stone-200 hover:border-brand-300 p-6 rounded-2xl transition-all hover:scale-[1.01] shadow-xs group"
                 >
-                  <div className="bg-white group-hover:bg-indigo-50 text-indigo-600 w-12 h-12 rounded-xl flex items-center justify-center shadow-xs border border-neutral-100 transition-colors">
-                    {feat.iconName === "CalendarRange" && <Calendar className="w-6 h-6" />}
-                    {feat.iconName === "MessageSquareText" && <MessageSquare className="w-6 h-6" />}
-                    {feat.iconName === "UsersRound" && <UsersRound className="w-6 h-6" />}
-                    {feat.iconName === "FileSpreadsheet" && <FileSpreadsheet className="w-6 h-6" />}
+                  <div className="bg-stone-50 group-hover:bg-brand-50 text-brand-700 w-12 h-12 rounded-xl flex items-center justify-center border border-stone-200 transition-colors">
+                    {feat.iconName === "CalendarRange" && <Calendar className="w-5 h-5 text-brand-600" />}
+                    {feat.iconName === "MessageSquareText" && <MessageSquare className="w-5 h-5 text-brand-600" />}
+                    {feat.iconName === "UsersRound" && <UsersRound className="w-5 h-5 text-brand-600" />}
+                    {feat.iconName === "FileSpreadsheet" && <FileSpreadsheet className="w-5 h-5 text-brand-600" />}
                   </div>
 
-                  <h3 className="text-lg font-bold font-display text-neutral-950 mt-5 mb-2.5">
+                  <h3 className="text-base font-extrabold font-display text-stone-900 mt-5 mb-2">
                     {feat.title}
                   </h3>
                   
-                  <p className="text-xs md:text-sm text-neutral-500 leading-relaxed">
+                  <p className="text-xs text-stone-500 leading-relaxed font-semibold">
                     {feat.description}
                   </p>
                 </div>
@@ -852,93 +926,53 @@ export default function App() {
             })}
           </div>
 
-        </div>
-      </section>
-
-      {/* 6. Professional Social Proof & Testimonials */}
-      <section id="recenze" className="py-20 lg:py-28 bg-[#fbfbfb] border-b border-neutral-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold text-emerald-700 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full">
-              Zpětná vazba
-            </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-neutral-950 mt-3 tracking-tight">
-              Zkušenosti profesionálů jako jste vy
-            </h2>
-            <p className="text-neutral-500 mt-2">
-              Pomáháme živnostníkům a firmám po celé České republice získat klid na práci.
-            </p>
-          </div>
-
-          {/* Testimonial Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {REVIEWS.map((rev) => {
-              return (
-                <div 
-                  key={rev.id} 
-                  className="bg-white border border-neutral-150 p-6 md:p-8 rounded-3xl flex flex-col justify-between shadow-xs relative"
-                >
-                  {/* Decorative rating block */}
-                  <div className="flex gap-1 mb-5">
-                    {[...Array(rev.rating)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-
-                  <p className="text-sm md:text-base text-neutral-600 leading-relaxed italic mb-6">
-                    &quot;{rev.text}&quot;
-                  </p>
-
-                  <div className="flex items-center gap-3.5 border-t border-neutral-100 pt-5">
-                    <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${rev.avatarColor}`}>
-                      {rev.name.split(" ").map(n => n[0]).join("")}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-sm text-neutral-950">{rev.name}</h4>
-                      <p className="text-xs text-neutral-500 font-medium">
-                        {rev.role} • <strong>{rev.business}</strong>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Verification safety quote */}
-          <div className="mt-12 text-center text-xs text-neutral-400 flex items-center justify-center gap-2">
-            <Award className="w-4 h-4 text-neutral-400" />
-            Všechny recenze pocházejí od skutečných platících uživatelů systému Spinly v ČR a SR.
+          {/* Section Navigation Buttons */}
+          <div className="mt-16 text-center flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+            <button
+              onClick={() => { setLandingSubView("cenik"); }}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider shadow-sm cursor-pointer"
+            >
+              Zobrazit Ceník a Tarify →
+            </button>
+            <button
+              onClick={() => { setLandingSubView("home"); }}
+              className="w-full bg-white border border-stone-200 text-stone-605 hover:bg-stone-50 font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Zpět na úvod
+            </button>
           </div>
 
         </div>
       </section>
+        </>
+      )}
 
-      {/* 7. Pricing Configurator Section */}
-      <section id="cenik" className="py-20 lg:py-28 bg-white border-b border-neutral-100">
+      {landingSubView === "cenik" && (
+        <>
+          {/* 7. Pricing Configurator Section */}
+          <section id="cenik" className="py-20 lg:py-28 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center max-w-2xl mx-auto mb-10">
-            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
-              Přehledný Ceník
+            <span className="text-[10px] font-bold text-brand-700 uppercase tracking-widest bg-brand-50 px-3.5 py-1.5 rounded-full border border-brand-200 font-mono">
+              Fér tarify
             </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-neutral-950 mt-3 tracking-tight">
-              Fér ceny bez skrytých poplatků
+            <h2 className="text-2xl sm:text-4xl font-display font-black text-stone-900 mt-4 tracking-tight">
+              Jasné ceny bez skrytých poplatků
             </h2>
-            <p className="text-neutral-500 mt-2">
-              Vyberte si balíček podle rozsahu vašeho podnikání. Kdykoliv můžete přejít výše nebo tarif zrušit.
+            <p className="text-stone-500 text-xs md:text-sm mt-3 font-semibold">
+              Vyberte si balíček odpovídající velikosti vašeho podnikání. Kdykoliv můžete přejít výše, snížit tarif nebo změnit předplatné.
             </p>
 
-            {/* Interactive Billing Period Toggle Switcher */}
-            <div className="mt-8 inline-flex items-center gap-3 bg-neutral-100 p-1 rounded-xl">
+            {/* Interactive Billing Period Toggle */}
+            <div className="mt-8 inline-flex items-center gap-2 bg-stone-100 border border-stone-200 p-1.5 rounded-xl font-bold">
               <button
                 type="button"
                 onClick={() => setBillingPeriod("monthly")}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-lg text-xxs font-black uppercase tracking-wider transition-all cursor-pointer ${
                   billingPeriod === "monthly" 
-                    ? "bg-white text-neutral-950 shadow-xs" 
-                    : "text-neutral-500 hover:text-neutral-800"
+                    ? "bg-white text-stone-900 border border-stone-205 shadow-xs font-bold" 
+                    : "text-stone-400 hover:text-stone-800"
                 }`}
               >
                 Měsíční platba
@@ -947,15 +981,15 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setBillingPeriod("yearly")}
-                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`px-4 py-2 rounded-lg text-xxs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
                   billingPeriod === "yearly" 
-                    ? "bg-indigo-600 text-white shadow-xs" 
-                    : "text-neutral-500 hover:text-neutral-800"
+                    ? "bg-brand-600 text-white font-bold" 
+                    : "text-stone-400 hover:text-stone-850"
                 }`}
               >
                 Roční platba
-                <span className="bg-emerald-500 text-neutral-950 text-[9px] font-extrabold px-1.5 py-0.5 rounded-md uppercase font-mono tracking-tight shrink-0">
-                  -20 %
+                <span className="bg-stone-50 text-brand-700 text-[8px] font-black px-1.5 py-0.5 rounded uppercase font-mono tracking-tighter shrink-0 border border-stone-200">
+                  Ušetříte 20%
                 </span>
               </button>
             </div>
@@ -972,47 +1006,47 @@ export default function App() {
                   key={plan.id}
                   className={`border rounded-3xl p-6 md:p-8 flex flex-col justify-between transition-all duration-300 relative bg-white ${
                     plan.isPopular 
-                      ? "border-indigo-500 ring-4 ring-indigo-50 shadow-xl scale-[1.03] z-10" 
-                      : "border-neutral-200 hover:border-neutral-300 shadow-xs"
+                      ? "border-brand-500 ring-2 ring-brand-500/20 shadow-xs scale-[1.03] z-10" 
+                      : "border-stone-200 hover:border-stone-300 shadow-xs"
                   }`}
                 >
                   
                   {/* Popular tag */}
                   {plan.isPopular && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest font-mono">
-                      Nejoblíbenější
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-600 text-white text-[9px] font-bold px-3.5 py-1 rounded-full uppercase tracking-widest font-mono">
+                      Doporučujeme
                     </span>
                   )}
 
                   <div>
-                    <h3 className="text-xl font-bold font-display text-neutral-950">{plan.name}</h3>
-                    <p className="text-xs text-neutral-500 mt-1 min-h-[32px] leading-relaxed">{plan.description}</p>
+                    <h3 className="text-lg font-extrabold font-display text-stone-900 uppercase tracking-tight">{plan.name}</h3>
+                    <p className="text-xs text-stone-500 mt-1 min-h-[30px] leading-relaxed font-semibold">{plan.description}</p>
                     
                     {/* Price Tag */}
                     <div className="my-6">
                       {hasPrice ? (
                         <div className="flex items-baseline gap-1">
-                          <span className="text-4xl font-display font-extrabold text-neutral-950">
+                          <span className="text-3xl sm:text-4xl font-display font-black text-stone-900">
                             {currentPrice} Kč
                           </span>
-                          <span className="text-xs text-neutral-500 font-medium">/ měsíc</span>
+                          <span className="text-xs text-stone-400 font-bold font-semibold">/ měsíc</span>
                         </div>
                       ) : (
-                        <span className="text-4xl font-display font-extrabold text-neutral-950">Zdarma</span>
+                        <span className="text-3xl sm:text-4xl font-display font-black text-stone-900">Zdarma</span>
                       )}
                       
-                      <p className="text-[10px] text-neutral-400 mt-1 font-mono uppercase tracking-wider">
-                        {billingPeriod === "yearly" && hasPrice ? "Účtováno ročně (Celkem " + (currentPrice * 12) + " Kč)" : "Bez závazků"}
+                      <p className="text-[10px] text-brand-600 mt-1 font-mono uppercase tracking-widest font-bold">
+                        {billingPeriod === "yearly" && hasPrice ? "Celkem " + (currentPrice * 12) + " Kč ročně" : "Zkušební doba zdarma"}
                       </p>
                     </div>
 
-                    <div className="border-t border-neutral-100 pt-6">
-                      <p className="text-xs font-bold text-neutral-900 uppercase tracking-wide mb-3">Co vše získáte:</p>
+                    <div className="border-t border-stone-100 pt-6">
+                      <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest font-mono mb-3">Co vše je v ceně:</p>
                       
                       <ul className="space-y-2.5">
                         {plan.features.map((feat, index) => (
-                          <li key={index} className="flex items-start gap-2 text-xs text-neutral-600 leading-normal">
-                            <Check className="w-4 h-4 text-emerald-500 stroke-[3] shrink-0 mt-0.5" />
+                          <li key={index} className="flex items-start gap-2 text-xs text-stone-605 leading-relaxed font-semibold font-medium">
+                            <Check className="w-4 h-4 text-brand-600 stroke-[3] shrink-0 mt-0.5" />
                             <span>{feat}</span>
                           </li>
                         ))}
@@ -1024,10 +1058,10 @@ export default function App() {
                   <div className="pt-8">
                     <button
                       onClick={() => openLeadForPlan(plan.name)}
-                      className={`w-full py-3.5 px-6 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                      className={`w-full py-3 px-6 rounded-xl text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer ${
                         plan.isPopular 
-                          ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100" 
-                          : "bg-neutral-55 hover:bg-neutral-100 text-neutral-800 border border-neutral-250"
+                          ? "bg-brand-600 hover:bg-brand-700 text-white shadow-xs" 
+                          : "bg-stone-50 hover:bg-stone-100 text-stone-705 border border-stone-250"
                       }`}
                     >
                       {plan.cta}
@@ -1039,26 +1073,46 @@ export default function App() {
             })}
           </div>
 
-          <div className="mt-10 text-center text-xs text-neutral-400">
-            * Uvedené ceny jsou bez DPH 21 %. Vyzkoušení služeb je zcela nezávazné, nevyžadujeme registraci platební karty.
+          <div className="mt-8 text-center text-[10px] text-stone-400 font-bold uppercase tracking-wide font-mono">
+            * Uvedené ceny jsou konečné roční pro bezstarostné podnikání. Aktivujeme ihned.
+          </div>
+
+          {/* Section Navigation Buttons */}
+          <div className="mt-16 text-center flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+            <button
+              onClick={() => { setLandingSubView("faq"); }}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider shadow-sm cursor-pointer"
+            >
+              Pokračovat na Časté dotazy →
+            </button>
+            <button
+              onClick={() => { setLandingSubView("home"); }}
+              className="w-full bg-white border border-stone-200 text-stone-605 hover:bg-stone-50 font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Zpět na úvod
+            </button>
           </div>
 
         </div>
       </section>
+        </>
+      )}
 
-      {/* 8. Accordion Section */}
-      <section id="faq" className="py-20 lg:py-28 bg-[#fafafa] border-b border-neutral-100">
+      {landingSubView === "faq" && (
+        <>
+          {/* 8. Accordion Section */}
+          <section id="faq" className="py-20 lg:py-28 relative bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest bg-white border border-neutral-200 px-3 py-1 rounded-full">
-              Máte dotazy?
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <span className="text-[10px] font-bold text-brand-700 uppercase tracking-widest bg-brand-50 px-3.5 py-1.5 rounded-full border border-brand-200 font-mono">
+              Odpovědi na otázky
             </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-neutral-950 mt-3 tracking-tight">
+            <h2 className="text-2xl sm:text-4xl font-display font-black text-stone-900 mt-4 tracking-tight">
               Často kladené otázky (FAQ)
             </h2>
-            <p className="text-neutral-500 mt-2">
-              Odpovídáme na nejčastější pochybnosti majitelů salonů a poskytovatelů služeb před registrací.
+            <p className="text-stone-500 text-xs md:text-sm mt-3 font-semibold">
+              Máte pochybnosti? Zde najdete srozumitelné odpovědi na nejčastější obavy majitelů českých studií před spuštěním.
             </p>
           </div>
 
@@ -1066,49 +1120,68 @@ export default function App() {
           <FaqSection />
 
         </div>
+
+        {/* Section Navigation Buttons */}
+        <div className="mt-16 text-center flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto">
+          <button
+            onClick={() => { openLeadForPlan("Pro"); }}
+            className="w-full bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider shadow-sm cursor-pointer animate-pulse"
+          >
+            Vyzkoušet na 14 dní zdarma teď!
+          </button>
+          <button
+            onClick={() => { setLandingSubView("home"); }}
+            className="w-full bg-white border border-stone-200 text-stone-605 hover:bg-stone-50 font-bold py-3.5 px-8 rounded-xl text-xs uppercase tracking-wider cursor-pointer"
+          >
+            Zpět na úvod
+          </button>
+        </div>
+
       </section>
+        </>
+      )}
 
       {/* 9. Final CTA conversion block */}
-      <section className="relative py-20 lg:py-28 bg-neutral-950 text-white overflow-hidden text-center select-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-3xl -z-10" />
+      {landingSubView === "home" && (
+        <section className="relative py-20 lg:py-28 overflow-hidden text-center select-none bg-[#FAF9F5] border-y border-stone-200/80">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-50 border border-brand-200 rounded-full text-[10px] font-bold uppercase tracking-widest text-brand-700 font-mono">
+              <Shield className="w-3.5 h-3.5 text-brand-600" />
+              Aktivace bez platební karty, okamžitý klid
+            </div>
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-          
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-xs font-semibold text-emerald-400">
-            <Shield className="w-3.5 h-3.5" />
-            Aktivace okamžitě, bez závazků
+            <h2 className="text-3xl sm:text-5xl font-display font-black tracking-tight leading-tight text-stone-900">
+              Stop telefonování. Začněte šetřit 12 hodin týdně.
+            </h2>
+            
+            <p className="text-xs sm:text-sm text-stone-500 max-w-2xl mx-auto leading-relaxed font-semibold">
+              Vyzkoušejte nejpopulárnější kadeřnický a salonní asistent Spinly na 14 dní bezplatně. Odbourejte zapomenuté rezervace a soustřeďte se čistě na klientský zážitek.
+            </p>
+
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto">
+              <button
+                onClick={() => openLeadForPlan("Pro")}
+                className="w-full bg-brand-600 hover:bg-brand-700 text-white font-extrabold py-4 px-8 rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all pointer-events-auto transform hover:-translate-y-0.5 cursor-pointer"
+              >
+                Získat zkušební verzi na 14 dní zdarma
+              </button>
+            </div>
+
+            <div className="flex items-center justify-center gap-5 text-stone-400 text-xxs font-bold uppercase tracking-wider pt-2 font-mono">
+              <span>✓ Nastavení zabere 5 min</span>
+              <span className="w-1.5 h-1.5 bg-stone-300 rounded-full" />
+              <span>✓ Česká linka podpory</span>
+              <span className="w-1.5 h-1.5 bg-stone-300 rounded-full" />
+              <span>✓ Bez závazků</span>
+            </div>
+
           </div>
-
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-extrabold tracking-tight">
-            Začněte šetřit 10+ hodin týdně ještě dnes
-          </h2>
-          
-          <p className="text-sm sm:text-base text-neutral-400 max-w-2xl mx-auto leading-relaxed">
-            Vyzkoušejte tarif Pro na 14 dní zcela zdarma. Získejte klid na svou práci, zvyšte počet rezervací a dejte navždy sbohem neustálému telefonování.
-          </p>
-
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3.5 max-w-md mx-auto">
-            <button
-              onClick={() => openLeadForPlan("Pro")}
-              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 px-8 rounded-xl text-sm transition-all transform hover:-translate-y-0.5 cursor-pointer shadow-lg shadow-indigo-950/40"
-            >
-              Vyzkoušet Spinly na 14 dní zdarma
-            </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-4 text-xs text-neutral-500 pt-2">
-            <span>✓ Nastavení zabere 5 min</span>
-            <span className="w-1 h-1 bg-neutral-700 rounded-full" />
-            <span>✓ Podpora v Češtině</span>
-            <span className="w-1 h-1 bg-neutral-700 rounded-full" />
-            <span>✓ Snadný export dat</span>
-          </div>
-
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 10. Styled footer conforming with terms and gdpr guidelines */}
-      <footer className="bg-neutral-900 text-neutral-400/95 py-12 md:py-16 border-t border-neutral-800">
+      <footer className="py-12 md:py-16 border-t border-stone-200 bg-stone-50 text-stone-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
@@ -1116,35 +1189,35 @@ export default function App() {
             {/* Branding Column */}
             <div className="space-y-4 md:col-span-1">
               <div className="flex items-center gap-2">
-                <div className="bg-indigo-600 text-white p-2 rounded-lg">
+                <div className="bg-brand-600 text-white p-2.5 rounded-lg">
                   <CalendarCheck className="w-4 h-4" />
                 </div>
-                <span className="text-lg font-display font-extrabold text-white">Spinly</span>
+                <span className="text-lg font-display font-extrabold text-stone-900">Spinly</span>
               </div>
-              <p className="text-xs text-neutral-500 leading-relaxed">
-                Moderní rezervační systém pro salony krásy, kadeřnictví, fyzioterapeuty a další profesionály hledající pohodlí a automatizaci.
+              <p className="text-xs text-stone-500 leading-relaxed font-semibold">
+                Slovenský a Český inteligentní rezervační motor pro plynulý chod salonů, kadeřnictví, sportovišť i ordinací.
               </p>
             </div>
 
             {/* Links Columns */}
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4">Odkazy</h4>
-              <ul className="space-y-2.5 text-xs">
-                <li><a href="#problém-řešení" className="hover:text-white transition-colors">Problém vs. Řešení</a></li>
-                <li><a href="#funkce" className="hover:text-white transition-colors">Klíčové funkce</a></li>
-                <li><a href="#cenik" className="hover:text-white transition-colors">Tarify &amp; Ceník</a></li>
-                <li><a href="#faq" className="hover:text-white transition-colors">Časté dotazy</a></li>
+              <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4 font-mono">Obsah</h4>
+              <ul className="space-y-2.5 text-xs text-stone-605 font-semibold flex flex-col items-start">
+                <li><button onClick={() => { setLandingSubView("problém-řešení"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="hover:text-brand-700 transition-colors cursor-pointer text-left">Problém vs. Řešení</button></li>
+                <li><button onClick={() => { setLandingSubView("funkce"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="hover:text-brand-700 transition-colors cursor-pointer text-left">Klíčové funkce</button></li>
+                <li><button onClick={() => { setLandingSubView("cenik"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="hover:text-brand-700 transition-colors cursor-pointer text-left">Tarify &amp; Ceník</button></li>
+                <li><button onClick={() => { setLandingSubView("faq"); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="hover:text-brand-700 transition-colors cursor-pointer text-left">Časté dotazy</button></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4">Právní náležitosti</h4>
-              <ul className="space-y-2.5 text-xs">
+              <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4 font-mono">Legislativa</h4>
+              <ul className="space-y-2.5 text-xs text-stone-605 font-semibold">
                 <li>
                   <a 
                     href="#gdpr" 
                     onClick={(e) => { e.preventDefault(); alert("Zpracování osobních údajů (GDPR):\nVšechna zadaná data v tomto systému podléhají šifrování dle certifikace GDPR a jsou uložena v zabezpečených evropských datacentrech. Vaše kontakty nikdy neposkytujeme k reklamním účelům třetích stran."); }}
-                    className="hover:text-white transition-colors"
+                    className="hover:text-brand-700 transition-colors"
                   >
                     Ochrana osobních údajů (GDPR)
                   </a>
@@ -1153,7 +1226,7 @@ export default function App() {
                   <a 
                     href="#terms" 
                     onClick={(e) => { e.preventDefault(); alert("Obchodní podmínky Spinly:\nRegistrace je dobrovolná. Po dobu 14 dní je systém plně zdarma bez jakýchkoliv závazků. Služba je poskytována na principu Software as a Service (SaaS)."); }}
-                    className="hover:text-white transition-colors"
+                    className="hover:text-brand-700 transition-colors"
                   >
                     Všeobecné obchodní podmínky
                   </a>
@@ -1162,7 +1235,7 @@ export default function App() {
                   <a 
                     href="#cookies" 
                     onClick={(e) => { e.preventDefault(); alert("Zásady cookies:\nPoužíváme pouze nezbytná funkční cookies pro přihlášení a uchování vaší zkušební relace."); }}
-                    className="hover:text-white transition-colors"
+                    className="hover:text-brand-700 transition-colors"
                   >
                     Zásady Cookies
                   </a>
@@ -1171,17 +1244,17 @@ export default function App() {
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-4">Kontaktujte nás</h4>
-              <ul className="space-y-2.5 text-xs text-neutral-400">
-                <li className="flex items-center gap-1.5 font-semibold text-white">
-                  <PhoneCall className="w-3.5 h-3.5 text-indigo-400" />
+              <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4 font-mono">Kontakt doručitelnosti</h4>
+              <ul className="space-y-2.5 text-xs text-stone-605 font-semibold">
+                <li className="flex items-center gap-2 font-bold text-brand-700">
+                  <PhoneCall className="w-3.5 h-3.5 text-brand-600" />
                   +420 234 567 890
                 </li>
-                <li className="flex items-center gap-1.5">
-                  <span className="text-neutral-500">E-mail:</span>
-                  <a href="mailto:info@spinly.cz" className="hover:text-white transition-colors underline">info@spinly.cz</a>
+                <li className="flex items-center gap-1.5 text-stone-500">
+                  <span className="text-stone-400 font-mono">E-mail:</span>
+                  <a href="mailto:info@spinly.cz" className="hover:text-brand-700 transition-colors underline">info@spinly.cz</a>
                 </li>
-                <li className="text-[11px] text-neutral-500 leading-normal pt-1_5">
+                <li className="text-[10px] text-stone-400 leading-normal pt-1 font-mono">
                   Spinly Technologies s.r.o.<br />
                   Rybná 716/24, Staré Město<br />
                   110 00 Praha 1, IČ: 12345678
@@ -1192,9 +1265,9 @@ export default function App() {
           </div>
 
           {/* Decent bottom copyright statement matches high security branding rules */}
-          <div className="border-t border-neutral-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500">
-            <p>© {new Date().getFullYear()} Spinly. Všechna práva vyhrazena. Navrženo pro česká a slovenská studia.</p>
-            <div className="flex items-center gap-3">
+          <div className="border-t border-stone-200 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-stone-400 font-bold uppercase tracking-wider font-mono">
+            <p>© {new Date().getFullYear()} Spinly. Všechna práva vyhrazena. Navrženo pro prosperující CZ a SK studia.</p>
+            <div className="flex items-center gap-3 text-brand-700/80">
               <span>Zabezpečení přenosu: SSL / AES-256</span>
             </div>
           </div>
@@ -1209,43 +1282,60 @@ export default function App() {
         initialPlanName={selectedPlanForModal}
       />
 
+      {/* 11b. Spinly Pay Wallet Modal Overlay */}
+      <WalletModal 
+        isOpen={isWalletOpen} 
+        onClose={() => setIsWalletOpen(false)} 
+        onOpenAuth={(mode) => {
+          setAuthMode(mode);
+          setIsLoginModalOpen(true);
+        }}
+      />
+
       {/* 12. Multi-Merchant Account Authorization Dialog */}
       {isLoginModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-neutral-200 p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#FAF9F5] rounded-3xl border border-stone-200 p-6 md:p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-brand-600" />
             
             {/* Close button */}
             <button 
               onClick={() => { setIsLoginModalOpen(false); setAuthError(""); }}
-              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 font-extrabold text-xl p-1 leading-none select-none"
+              className="absolute top-4 right-4 text-stone-400 hover:text-stone-900 font-extrabold text-xl p-1 leading-none select-none"
             >
               ✕
             </button>
 
             {/* Core Header */}
             <div className="text-center space-y-1.5 mb-6">
-              <div className="bg-indigo-50 text-indigo-700 font-bold p-3 rounded-2xl w-fit mx-auto mb-2">
-                <Scissors className="w-6 h-6" />
+              <div className="bg-brand-50 text-brand-700 font-bold p-3 rounded-2xl w-fit mx-auto mb-2 border border-brand-150">
+                <Scissors className="w-5 h-5 text-brand-600" />
               </div>
-              <h3 className="text-xl font-extrabold tracking-tight text-neutral-950">
-                {authMode === "login" ? "Vstup do administrace" : "Založení bezplatného účtu"}
+              <h3 className="text-xl font-display font-extrabold text-stone-900">
+                {authMode === "login" 
+                  ? "Vstup do administrace" 
+                  : authAccountType === "customer" 
+                    ? "Registrace zákazníka" 
+                    : "Založení bezplatného účtu"}
               </h3>
-              <p className="text-xs text-neutral-500 font-medium">
+              <p className="text-xs text-stone-500 leading-relaxed font-semibold">
                 {authMode === "login" 
                   ? "Spravujte své rezervace a zákazníky na jednom místě." 
-                  : "Získejte kompletní rezervační systém zdarma na 14 dní."}
+                  : authAccountType === "customer"
+                    ? "Získejte 1 000 Kč bonus k registraci a plaťte v salonech přes Spinly Pay!"
+                    : "Získejte kompletní rezervační kalendář zdarma na 14 dní."}
               </p>
             </div>
 
             {/* Form Toggle Tabs switcher */}
-            <div className="flex border-b border-neutral-100 pb-3 mb-4 select-none">
+            <div className="flex border-b border-stone-200 pb-3 mb-4 select-none">
               <button
                 type="button"
                 onClick={() => { setAuthMode("login"); setAuthError(""); }}
-                className={`flex-1 text-center pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                className={`flex-1 text-center pb-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                   authMode === "login" 
-                    ? "border-indigo-600 text-indigo-700" 
-                    : "border-transparent text-neutral-400 hover:text-neutral-600"
+                    ? "border-brand-600 text-brand-700" 
+                    : "border-transparent text-stone-400 hover:text-stone-600"
                 }`}
               >
                 Přihlášení
@@ -1253,23 +1343,51 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => { setAuthMode("register"); setAuthError(""); }}
-                className={`flex-1 text-center pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                className={`flex-1 text-center pb-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                   authMode === "register" 
-                    ? "border-indigo-600 text-indigo-700" 
-                    : "border-transparent text-neutral-400 hover:text-neutral-600"
+                    ? "border-brand-600 text-brand-700" 
+                    : "border-transparent text-stone-400 hover:text-stone-600"
                 }`}
               >
-                Registrace podniku
+                Registrace
               </button>
             </div>
+
+            {/* Account Type Selector for Register Mode */}
+            {authMode === "register" && (
+              <div className="bg-stone-100 p-1 rounded-2xl flex items-center mb-4 border border-stone-200/50">
+                <button
+                  type="button"
+                  onClick={() => setAuthAccountType("customer")}
+                  className={`flex-1 text-center py-2.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    authAccountType === "customer"
+                      ? "bg-stone-900 text-[#d5af66] shadow-sm"
+                      : "text-stone-500 hover:text-stone-700"
+                  }`}
+                >
+                  🙋‍♂️ Jsem zákazník
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthAccountType("partner")}
+                  className={`flex-1 text-center py-2.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    authAccountType === "partner"
+                      ? "bg-brand-600 text-white shadow-sm"
+                      : "text-stone-500 hover:text-stone-700"
+                  }`}
+                >
+                  💼 Jsem podnik / salon
+                </button>
+              </div>
+            )}
 
             {/* Core credentials form fields */}
             <form onSubmit={handleAuthSubmit} className="space-y-4">
               
-              {authMode === "register" && (
+              {authMode === "register" && authAccountType === "partner" && (
                 <>
                   <div>
-                    <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
                       Název vašeho podniku / salonu
                     </label>
                     <input
@@ -1278,18 +1396,18 @@ export default function App() {
                       placeholder="Např. Studio Glamour"
                       value={authBusinessName}
                       onChange={(e) => setAuthBusinessName(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium"
+                      className="w-full px-3.5 py-2.5 border border-stone-200 bg-white focus:outline-none focus:border-brand-500 text-xs font-extrabold text-stone-900 placeholder-stone-400 rounded-xl"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
+                    <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
                       Hlavní zaměření / segment
                     </label>
                     <select
                       value={authSegment}
                       onChange={(e) => setAuthSegment(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium bg-white"
+                      className="w-full px-3.5 py-2.5 border border-stone-200 bg-white text-stone-900 focus:outline-none focus:border-brand-500 rounded-xl text-xs font-bold cursor-pointer"
                     >
                       {INDUSTRIES.map(i => (
                         <option key={i.id} value={i.id}>{i.label}</option>
@@ -1300,8 +1418,8 @@ export default function App() {
               )}
 
               <div>
-                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                  E-mailová adresa (uživatelské jméno)
+                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
+                  E-mailová adresa (přihlášení)
                 </label>
                 <input
                   type="email"
@@ -1309,13 +1427,13 @@ export default function App() {
                   placeholder="partner@spinly.cz"
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-mono font-medium"
+                  className="w-full px-3.5 py-2.5 border border-stone-200 bg-white focus:outline-none focus:border-brand-500 text-xs font-extrabold text-stone-900 placeholder-stone-400 rounded-xl font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                  Heslo (alespoň 6 znaků)
+                <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
+                  Bezpečné heslo (min. 6 znaků)
                 </label>
                 <input
                   type="password"
@@ -1323,14 +1441,14 @@ export default function App() {
                   placeholder="••••••••"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-neutral-200 focus:border-indigo-500 focus:outline-hidden rounded-xl text-xs font-medium"
+                  className="w-full px-3.5 py-2.5 border border-stone-200 bg-white focus:outline-none focus:border-brand-500 text-xs font-extrabold text-stone-900 placeholder-stone-400 rounded-xl"
                 />
               </div>
 
               {/* Error box */}
               {authError && (
-                <div className="flex gap-2 items-start bg-rose-50 border border-rose-100 text-rose-700 p-3 rounded-xl text-[11px] font-semibold">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="flex gap-2 items-start bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-[11px] font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 animate-bounce" />
                   <span>{authError}</span>
                 </div>
               )}
@@ -1339,7 +1457,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={authSubmitting}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-all shadow-md cursor-pointer"
+                className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
               >
                 {authSubmitting ? "Ověřuji..." : authMode === "login" ? "Přihlásit se" : "Založit účet zdarma"}
               </button>
@@ -1347,11 +1465,11 @@ export default function App() {
             </form>
 
             {/* Split dividers */}
-            <div className="relative my-5 text-center select-none">
+            <div className="relative my-5 text-center select-none font-mono">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-neutral-100" />
+                <div className="w-full border-t border-stone-200" />
               </div>
-              <span className="relative bg-white px-2.5 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nebo</span>
+              <span className="relative bg-[#FAF9F5] px-2.5 text-[9px] font-black text-stone-400 uppercase tracking-widest">Nebo</span>
             </div>
 
             {/* Google sign-in integrations */}
@@ -1359,9 +1477,9 @@ export default function App() {
               <button
                 onClick={handleGoogleSignIn}
                 disabled={authSubmitting}
-                className="w-full py-2 px-4 border border-neutral-200 hover:border-neutral-300 rounded-xl text-xs font-semibold hover:bg-neutral-50 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                className="w-full py-2.5 bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
               >
-                <span className="text-sm">🌐</span>
+                <span>🌐</span>
                 Přihlásit se přes Google
               </button>
 
@@ -1369,13 +1487,13 @@ export default function App() {
               <button
                 onClick={handleDemoSignIn}
                 disabled={authSubmitting}
-                className="w-full py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-95 text-white rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-indigo-100 animate-pulse"
+                className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm animate-pulse"
               >
-                <Zap className="w-3.5 h-3.5 fill-white shrink-0" />
-                Rychlé vyzkoušení jako Host Administrátor
+                <Zap className="w-3.5 h-3.5 fill-white stroke-[3] text-white" />
+                Vstoupit jako Host Administrátor (Demo)
               </button>
-              <p className="text-[10px] text-neutral-400 font-semibold text-center leading-none mt-1">
-                (Otevře plnou zkušební administraci ihned na 1 kliknutí)
+              <p className="text-[9px] text-stone-400 font-bold text-center uppercase tracking-widest mt-1">
+                (Okamžitě aktivuje plnou administraci na 1 kliknutí)
               </p>
             </div>
 

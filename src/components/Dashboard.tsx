@@ -18,7 +18,8 @@ import {
   ChevronRight, 
   CornerDownRight, 
   Sparkles,
-  Info
+  Info,
+  Wallet
 } from "lucide-react";
 import { 
   doc, 
@@ -149,15 +150,13 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
 
   // Load profile from firestore
   useEffect(() => {
-    let unsubProfile = () => {};
+    const docRef = doc(db, "leads", user.uid);
     
-    async function loadData() {
+    const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       try {
-        const docRef = doc(db, "leads", user.uid);
-        const docSnap = await getDoc(docRef);
-        
         if (docSnap.exists()) {
           setProfile(docSnap.data() as any);
+          setLoadingProfile(false);
         } else {
           // Initialize a clean lead profile
           const initialProfile = {
@@ -167,19 +166,21 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
             phone: profile.phone,
             segment: profile.segment,
             plan: "Pro",
+            walletBalance: 1000,
             createdAt: serverTimestamp()
           };
           await setDoc(docRef, initialProfile);
           setProfile(initialProfile as any);
+          setLoadingProfile(false);
         }
       } catch (err) {
-        console.error("Error loading profile:", err);
-      } finally {
+        console.error("Error handling snapshot:", err);
         setLoadingProfile(false);
       }
-    }
-
-    loadData();
+    }, (err) => {
+      console.error("Error with snapshot listener:", err);
+      setLoadingProfile(false);
+    });
 
     // Fetch services according to segment or local storage
     const localServicesKey = `spinly_services_${user.uid}`;
@@ -192,6 +193,8 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
       setServices(defaultServices);
       localStorage.setItem(localServicesKey, JSON.stringify(defaultServices));
     }
+
+    return () => unsubscribe();
   }, [user.uid]);
 
   // Sync services back to localStorage when changed
@@ -525,42 +528,48 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans antialiased text-slate-800">
+    <div className="min-h-screen bg-[#020617] flex flex-col font-sans antialiased text-slate-200 selection:bg-emerald-500 selection:text-slate-950 bg-grid-pattern pb-10">
       
       {/* 1. Header bar with branding & quick logout */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-xs">
+      <header className="bg-[#020617]/85 backdrop-blur-md border-b border-slate-900 sticky top-0 z-20 shadow-xs text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <button 
               onClick={onBackToLanding}
-              className="text-slate-500 hover:text-slate-900 flex items-center gap-1.5 text-sm font-medium transition-all"
+              className="text-slate-400 hover:text-white flex items-center gap-1.5 text-sm font-bold transition-all cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               Zpět na web
             </button>
-            <div className="h-5 w-px bg-slate-200" />
+            <div className="h-5 w-px bg-slate-900" />
             <div className="flex items-center gap-2">
-              <div className="bg-indigo-600 text-white p-2 rounded-lg flex items-center justify-center font-bold">
+              <div className="bg-emerald-500 text-slate-950 p-2 rounded-lg flex items-center justify-center font-bold">
                 <Scissors className="w-4 h-4" />
               </div>
-              <span className="text-lg font-extrabold tracking-tight text-slate-950">
-                Spinly <span className="text-xs bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-mono">ADMIN</span>
+              <span className="text-lg font-extrabold tracking-tight text-white">
+                Spinly <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20 font-mono tracking-wider font-bold">ADMIN</span>
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full flex items-center gap-1">
+            {/* Merchant's Spinly Pay Wallet Balance display */}
+            <div className="bg-slate-900 border border-slate-800 text-[#d5af66] font-mono font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shrink-0">
+              <Wallet className="w-3.5 h-3.5 text-[#d5af66]" />
+              <span className="hidden sm:inline">Zůstatek:</span> <span>{((profile as any).walletBalance ?? 1000).toLocaleString("cs-CZ")} Kč</span>
+            </div>
+
+            <span className="text-[10px] font-bold px-2.5 py-1 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center gap-1 border border-emerald-500/20 uppercase tracking-wider font-mono">
               <Sparkles className="w-3 h-3" />
               Tarif {profile.plan || "Pro"}
             </span>
             <div className="text-right hidden md:block">
-              <p className="text-xs font-bold text-slate-900 leading-tight">{profile.businessName}</p>
-              <p className="text-[10px] text-slate-500 leading-tight">{profile.email}</p>
+              <p className="text-xs font-bold text-white leading-tight">{profile.businessName}</p>
+              <p className="text-[10px] text-slate-400 leading-tight">{profile.email}</p>
             </div>
             <button
               onClick={onLogout}
-              className="text-rose-600 hover:text-rose-800 p-2 rounded-xl hover:bg-rose-50 transition-all flex items-center justify-center gap-1.5 text-xs font-semibold"
+              className="text-rose-400 hover:text-rose-300 p-2 rounded-xl hover:bg-rose-500/5 transition-all flex items-center justify-center gap-1.5 text-xs font-bold pointer-events-auto cursor-pointer"
               title="Odhlásit se"
             >
               <LogOut className="w-4 h-4" />
@@ -606,13 +615,13 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as any)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium text-sm text-left truncate whitespace-nowrap cursor-pointer ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm text-left truncate whitespace-nowrap cursor-pointer ${
                   IsActive 
-                    ? "bg-indigo-600 text-white shadow-xs" 
-                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/10" 
+                    : "bg-slate-950/60 border border-slate-900 text-slate-400 hover:text-white hover:border-slate-800 hover:bg-slate-900/40"
                 }`}
               >
-                <Icon className={`w-4 h-4 shrink-0 ${IsActive ? "text-white" : "text-slate-400"}`} />
+                <Icon className={`w-4 h-4 shrink-0 ${IsActive ? "text-slate-950" : "text-slate-500"}`} />
                 {item.label}
               </button>
             );
@@ -620,12 +629,12 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
         </aside>
 
         {/* Content Panel Area */}
-        <main className="flex-1 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm">
+        <main className="flex-1 bg-slate-950/80 border border-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl relative">
           
           {loadingProfile || loadingBookings ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-3">
-              <div className="w-10 h-10 border-3 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-              <p className="text-sm font-semibold text-slate-500 animate-pulse">Načítám administraci vašeho kalendáře...</p>
+              <div className="w-10 h-10 border-3 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin" />
+              <p className="text-sm font-semibold text-slate-400 animate-pulse">Načítám administraci vašeho kalendáře...</p>
             </div>
           ) : (
             <>
@@ -727,11 +736,14 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
                       </div>
                     </div>
 
-                    <div className="p-5 border border-slate-200 rounded-2xl bg-white flex flex-col justify-between">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Počet služeb</span>
+                    <div className="p-5 border border-slate-200 rounded-2xl bg-white flex flex-col justify-between hover:border-[#d5af66] transition-colors shadow-2xs">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-[#d5af66] flex items-center gap-1">
+                        <Wallet className="w-3.5 h-3.5 text-[#d5af66]" />
+                        Spinly Pay Peněženka
+                      </span>
                       <div className="mt-2.5">
-                        <span className="text-2xl font-black text-slate-950 font-mono">{services.length}</span>
-                        <p className="text-slate-500 text-[10px] mt-0.5 font-semibold">Aktivních položek v ceníku</p>
+                        <span className="text-2xl font-black text-slate-950 font-mono">{((profile as any).walletBalance ?? 1000).toLocaleString("cs-CZ")} Kč</span>
+                        <p className="text-slate-500 text-[10px] mt-0.5 font-semibold">Okamžitě k dispozici k vyplacení</p>
                       </div>
                     </div>
 
@@ -811,6 +823,11 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
 
                             <div className="flex items-center gap-3">
                               <span className="text-xs text-slate-400 font-medium font-mono hidden md:inline">{bk.day}</span>
+                              {bk.paymentStatus === "zaplaceno" && (
+                                <span className="text-[10px] font-mono font-black bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                                  <span>💸 Uhrazeno</span>
+                                </span>
+                              )}
                               {bk.status === "přijato" && (
                                 <span className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full border border-amber-200">
                                   Čeká na schválení
@@ -1536,6 +1553,18 @@ export default function Dashboard({ user, onLogout, onGoToBooking, onBackToLandi
                 <p className="text-[10px] text-slate-400 font-semibold font-mono">Standardní cena</p>
               </div>
             </div>
+
+            {/* Wallet payment status inside details */}
+            {selectedBookingDetails.paymentStatus === "zaplaceno" && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-between text-emerald-800 text-xs font-semibold animate-fadeIn">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <span className="text-sm">💸</span> Uhrazeno přes Spinly Pay
+                </span>
+                <span className="font-mono bg-emerald-100 text-emerald-950 border border-emerald-250 px-2 py-0.5 rounded font-black">
+                  {selectedBookingDetails.paymentAmount || 500} Kč
+                </span>
+              </div>
+            )}
 
             {/* CRM Notes view */}
             <div className="space-y-2">

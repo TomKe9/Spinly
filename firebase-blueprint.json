@@ -63,9 +63,28 @@
         "email": { "type": "string", "format": "email", "description": "Kontaktní e-mail." },
         "phone": { "type": "string", "description": "Kontaktní telefon." },
         "plan": { "type": "string", "description": "Zvolený tarif (Zdarma, Pro, Enterprise)." },
+        "walletBalance": { "type": "number", "description": "Aktuální zůstatek peněženky uživatele v Kč (výchozí 1000 Kč jako bonus)." },
         "createdAt": { "type": "string", "format": "date-time", "description": "Čas registrace." }
       },
       "required": ["businessName", "segment", "name", "email", "phone", "plan", "createdAt"]
+    },
+    "walletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Záznam o transakci v peněžence (dobití nebo platba kadeřníkovi/barberovi).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unikátní ID transakce." },
+        "userId": { "type": "string", "description": "ID uživatele, kterému transakce patří." },
+        "userEmail": { "type": "string", "description": "E-mail uživatele." },
+        "type": { "type": "string", "enum": ["topup", "payment_sent", "payment_received"], "description": "Typ transakce." },
+        "amount": { "type": "number", "description": "Částka transakce v Kč." },
+        "description": { "type": "string", "description": "Slovní popis (např. 'Dobití peněženky', 'Platba za Pánský střih')." },
+        "targetUid": { "type": "string", "description": "Cílové ID (obchodník při platbě, nebo plátce při příjmu)." },
+        "targetName": { "type": "string", "description": "Název protistrany (např. salonu)." },
+        "bookingId": { "type": "string", "description": "Případné ID spojené rezervace." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Čas provedení transakce." }
+      },
+      "required": ["id", "userId", "type", "amount", "description", "createdAt"]
     }
   },
   "firestore": {
@@ -84,6 +103,10 @@
     "/leads/{leadId}": {
       "schema": "lead",
       "description": "Kolekce pro zkušební registrace partnerů do systému Spinly."
+    },
+    "/walletTransactions/{transactionId}": {
+      "schema": "walletTransaction",
+      "description": "Kolekce všech finančních převodů a dobití v systému."
     }
   }
 }

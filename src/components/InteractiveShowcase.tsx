@@ -13,7 +13,9 @@ import {
   MessageSquare,
   ShieldCheck,
   CalendarDays,
-  Smartphone
+  Smartphone,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { INDUSTRIES } from "../types";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -31,7 +33,6 @@ export default function InteractiveShowcase() {
   const [smsIncoming, setSmsIncoming] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Restart the booking simulation
   const handleReset = () => {
     setIsBooked(false);
     setIsSubmitting(false);
@@ -51,7 +52,6 @@ export default function InteractiveShowcase() {
     const bookingId = "book-" + randomSuffix;
 
     try {
-      // 1. Persist the booking directly using Firestore client SDK
       try {
         await setDoc(doc(db, "bookings", bookingId), {
           service: selectedIndustry.service,
@@ -67,15 +67,12 @@ export default function InteractiveShowcase() {
         handleFirestoreError(firestoreError, OperationType.WRITE, `bookings/${bookingId}`);
       }
 
-      // 2. Clear state and trigger simulator responses
       setIsSubmitting(false);
       setIsBooked(true);
       
-      // Simulate SMS receiving after 1.2s to show beautiful UI experience
       setTimeout(() => {
         setSmsTimer(true);
         setSmsIncoming(true);
-        // Turn off sound or active ring indicator after 3s
         setTimeout(() => {
           setSmsIncoming(false);
         }, 3000);
@@ -88,7 +85,6 @@ export default function InteractiveShowcase() {
     }
   };
 
-  // Switch industries and update recommended default service
   const selectIndustryHandler = (ind: typeof INDUSTRIES[0]) => {
     setSelectedIndustry(ind);
     setIsBooked(false);
@@ -96,41 +92,45 @@ export default function InteractiveShowcase() {
   };
 
   return (
-    <div id="demo-showcase" className="w-full max-w-6xl mx-auto bg-white rounded-3xl border border-neutral-100 shadow-xl overflow-hidden">
+    <div id="demo-showcase" className="w-full max-w-5xl mx-auto rounded-3xl border border-stone-200/80 bg-white shadow-xl overflow-hidden relative">
+      <div className="absolute top-0 left-0 w-full h-1.5 bg-brand-600" />
       
       {/* Upper header explanatory header block */}
-      <div className="bg-neutral-900 text-white p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-6 md:p-8 border-b border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-5 bg-stone-50/50 relative overflow-hidden">
         <div>
-          <span className="inline-block bg-emerald-500/20 text-emerald-300 font-mono text-xs uppercase px-3 py-1 rounded-full font-semibold tracking-wider mb-2">
-            Interaktivní ukázka
+          <span className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 font-mono text-[10px] uppercase px-3 py-1 rounded-full font-bold tracking-widest mb-3 border border-brand-100">
+            <Sparkles className="w-3 h-3 text-brand-600" /> Interaktivní simulátor
           </span>
-          <h3 className="text-2xl md:text-3xl font-display font-bold tracking-tight">
-            Vyzkoušejte si, jak snadno to funguje
+          <h3 className="text-2xl md:text-3xl font-display font-black tracking-tight text-stone-900 leading-none">
+            Vyzkoušejte si objednávku na 2 kliknutí
           </h3>
-          <p className="text-neutral-400 mt-1 text-sm md:text-base max-w-2xl">
-            Zkuste si zarezervovat termín v levém sloupci jako zákazník. V pravém sloupci ihned spatříte, jak systém Spinly zaeviduje schůzku a rozešle SMS upozornění.
+          <p className="text-stone-500 mt-1.5 text-xs md:text-sm max-w-2xl leading-relaxed font-semibold">
+            Vyberte obor, vyplňte jméno a hned uvidíte, jak Spinly automaticky zaznamená rezervaci do kalendáře a okamžitě odešle potvrzovací SMS.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        
+        {/* Industry fast switcher */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-stone-100/80 p-1.5 rounded-2xl border border-stone-200/60 shrink-0 self-start md:self-auto">
           {INDUSTRIES.map((ind) => {
             const isSelected = selectedIndustry.id === ind.id;
             return (
               <button
                 key={ind.id}
                 onClick={() => selectIndustryHandler(ind)}
-                className={`p-2.5 rounded-xl transition-all duration-200 relative group flex items-center gap-1 ${
+                className={`px-3 py-2 rounded-xl transition-all duration-200 flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
                   isSelected 
-                    ? "bg-indigo-600 text-white shadow-md scale-105" 
-                    : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
+                    ? "bg-brand-600 text-white shadow-xs scale-[1.03]" 
+                    : "text-stone-500 hover:text-stone-800 hover:bg-stone-50"
                 }`}
-                title={ind.label}
               >
-                {ind.id === "salon" && <Sparkles className="w-4 h-4" />}
-                {ind.id === "hair" && <Scissors className="w-4 h-4" />}
-                {ind.id === "massage" && <Activity className="w-4 h-4" />}
-                {ind.id === "physio" && <HeartPulse className="w-4 h-4" />}
-                {ind.id === "other" && <CalendarCheck className="w-4 h-4" />}
-                <span className="text-xs font-medium hidden lg:inline">{ind.label}</span>
+                <span>
+                  {ind.id === "salon" && "✨"}
+                  {ind.id === "hair" && "💇"}
+                  {ind.id === "massage" && "💆"}
+                  {ind.id === "physio" && "🩺"}
+                  {ind.id === "other" && "📅"}
+                </span>
+                <span>{ind.label}</span>
               </button>
             );
           })}
@@ -138,47 +138,47 @@ export default function InteractiveShowcase() {
       </div>
 
       {/* Main Sandbox Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-neutral-100">
+      <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-stone-100">
         
-        {/* Left Column: Client Booking Widget Form */}
-        <div className="p-6 md:p-10 bg-neutral-50/50">
+        {/* Left Column: Client Booking Widget Form (Width: 7/12) */}
+        <div className="lg:col-span-7 p-6 md:p-8 bg-white">
           <div className="max-w-md mx-auto">
-            <div className="flex items-center gap-3 mb-6 bg-white py-2 px-3.5 rounded-full border border-neutral-100 w-fit shadow-xs">
-              <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full animate-ping" />
-              <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                Rezervační widget pro vaše klienty
+            <div className="flex items-center gap-2 mb-6 bg-stone-100 py-1.5 px-3 rounded-full border border-stone-200/40 w-fit">
+              <span className="w-2 h-2 bg-brand-500 rounded-full animate-ping" />
+              <p className="text-[10px] font-bold text-brand-700 uppercase tracking-widest font-mono">
+                Z pohledu vašeho klienta
               </p>
             </div>
 
             {!isBooked ? (
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
-                    Vybraná služba
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
+                    Služba
                   </label>
-                  <div className="p-4 bg-white rounded-2xl border border-neutral-200 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-indigo-50 p-2.5 rounded-xl text-indigo-600">
-                        {selectedIndustry.id === "salon" && <Sparkles className="w-5 h-5" />}
-                        {selectedIndustry.id === "hair" && <Scissors className="w-5 h-5" />}
-                        {selectedIndustry.id === "massage" && <Activity className="w-5 h-5" />}
-                        {selectedIndustry.id === "physio" && <HeartPulse className="w-5 h-5" />}
-                        {selectedIndustry.id === "other" && <CalendarCheck className="w-5 h-5" />}
+                  <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/60 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-brand-50 p-2 rounded-xl text-brand-700">
+                        {selectedIndustry.id === "salon" && <Sparkles className="w-4 h-4" />}
+                        {selectedIndustry.id === "hair" && <Scissors className="w-4 h-4" />}
+                        {selectedIndustry.id === "massage" && <Activity className="w-4 h-4" />}
+                        {selectedIndustry.id === "physio" && <HeartPulse className="w-4 h-4" />}
+                        {selectedIndustry.id === "other" && <CalendarCheck className="w-4 h-4" />}
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm text-neutral-900">{selectedIndustry.service}</h4>
-                        <p className="text-xs text-neutral-500">Doba trvání: 60 minut</p>
+                        <h4 className="font-extrabold text-xs text-stone-900 uppercase tracking-tight">{selectedIndustry.service}</h4>
+                        <p className="text-[11px] text-stone-500 font-mono">Doba trvání: 60 minut</p>
                       </div>
                     </div>
-                    <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full">
-                      Volno
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-brand-50 text-brand-700 border border-brand-200 rounded-full">
+                      Volný termín
                     </span>
                   </div>
                 </div>
 
                 {/* Day selection */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
                     Vyberte den
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -189,10 +189,10 @@ export default function InteractiveShowcase() {
                           type="button"
                           key={day}
                           onClick={() => setSelectedDay(day)}
-                          className={`py-3 px-2 text-center rounded-xl font-medium text-sm transition-all duration-200 border ${
+                          className={`py-2.5 px-1 text-center rounded-xl font-bold text-xs transition-all duration-200 border cursor-pointer ${
                             isSelected 
-                              ? "bg-indigo-600 border-indigo-600 text-white shadow-xs" 
-                              : "bg-white border-neutral-200 text-neutral-700 hover:border-neutral-300"
+                              ? "bg-brand-600 border-brand-500 text-white shadow-xs" 
+                              : "bg-white border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
                           }`}
                         >
                           {day}
@@ -204,8 +204,8 @@ export default function InteractiveShowcase() {
 
                 {/* Hours selection */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">
-                    Dostupné termíny
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-1.5 font-mono">
+                    Vyberte čas
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {["09:00", "11:30", "14:00", "16:15"].map((time) => {
@@ -215,10 +215,10 @@ export default function InteractiveShowcase() {
                           type="button"
                           key={time}
                           onClick={() => setSelectedTime(time)}
-                          className={`py-2 px-1 text-center font-mono text-xs rounded-lg transition-all duration-200 border ${
+                          className={`py-2 px-1 text-center font-mono text-xs rounded-xl transition-all duration-200 border cursor-pointer ${
                             isSelected 
-                              ? "bg-indigo-600 border-indigo-600 text-white shadow-xs" 
-                              : "bg-white border-neutral-200 text-neutral-700 hover:border-neutral-300"
+                              ? "bg-brand-600 border-brand-500 text-white shadow-xs" 
+                              : "bg-white border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
                           }`}
                         >
                           {time}
@@ -229,11 +229,11 @@ export default function InteractiveShowcase() {
                 </div>
 
                 {/* Basic client info */}
-                <div className="space-y-3 pt-2">
+                <div className="space-y-2.5 pt-1.5">
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-neutral-400" />
-                      Vaše Jméno a Příjmení
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center gap-1.5 font-mono">
+                      <User className="w-3.5 h-3.5 text-stone-400" />
+                      Jméno a Příjmení
                     </label>
                     <input
                       type="text"
@@ -241,13 +241,13 @@ export default function InteractiveShowcase() {
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
                       placeholder="Např. Martin Dvořák"
-                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 bg-white placeholder-neutral-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-neutral-800"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-250 bg-white placeholder-stone-400 text-xs focus:outline-none text-stone-900 font-bold"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-neutral-400" />
+                    <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1 flex items-center gap-1.5 font-mono">
+                      <Phone className="w-3.5 h-3.5 text-stone-400" />
                       Telefonní číslo (pro testovací SMS)
                     </label>
                     <input
@@ -256,13 +256,13 @@ export default function InteractiveShowcase() {
                       value={clientPhone}
                       onChange={(e) => setClientPhone(e.target.value)}
                       placeholder="Např. +420 777 123 456"
-                      className="w-full px-4 py-2.5 rounded-xl border border-neutral-200 bg-white placeholder-neutral-400 text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium text-neutral-800"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-250 bg-white placeholder-stone-400 text-xs focus:outline-none text-stone-900 font-bold font-mono"
                     />
                   </div>
                 </div>
 
                 {submitError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl text-center">
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-700 text-xs font-semibold rounded-xl text-center">
                     {submitError}
                   </div>
                 )}
@@ -270,103 +270,103 @@ export default function InteractiveShowcase() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 px-6 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] cursor-pointer"
+                  className="w-full mt-3 bg-brand-600 hover:bg-brand-700 text-white py-3 px-6 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] cursor-pointer"
                 >
                   {isSubmitting ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/35 border-t-white rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Odesílám rezervaci...
                     </>
                   ) : (
                     <>
-                      Odeslat rezervaci zdarma
-                      <ArrowRight className="w-4 h-4" />
+                      Odeslat rezervaci
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
                 </button>
               </form>
             ) : (
-              <div className="py-8 text-center space-y-6">
-                <div className="mx-auto w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 shadow-inner">
-                  <Check className="w-8 h-8 stroke-[3]" />
+              <div className="py-12 text-center space-y-6">
+                <div className="mx-auto w-14 h-14 bg-brand-50 rounded-full flex items-center justify-center text-brand-600 border border-brand-100">
+                  <CheckCircle2 className="w-7 h-7" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-bold text-neutral-900">Zákazník právě odeslal objednávku!</h4>
-                  <p className="text-sm text-neutral-500 mt-2 max-w-sm mx-auto">
-                    Na simulátoru vpravo se podívejte na okamžitou automatickou reakci rezervačního systému Spinly.
+                  <h4 className="text-lg font-black text-stone-900 font-display">Klient odeslal rezervaci!</h4>
+                  <p className="text-xs text-stone-505 mt-2 max-w-xs mx-auto leading-relaxed font-semibold">
+                    Zaslaná žádost byla doručena. Na mobilním náhledu vpravo vidíte, jak ihned pípne potvrzující SMS zpráva.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline uppercase tracking-wider cursor-pointer"
+                  className="text-xs font-bold text-brand-600 hover:text-brand-700 underline uppercase tracking-widest cursor-pointer"
                 >
-                  Zkusit jinou simulaci
+                  Smazat a zkusit znovu
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Column: Owner Calendar & SMS phone mockup display */}
-        <div className="p-6 md:p-10 bg-neutral-900 text-white flex flex-col gap-6 justify-between select-none">
+        {/* Right Column: Owner Calendar & SMS phone mockup display (Width: 5/12) */}
+        <div className="lg:col-span-5 p-6 md:p-8 bg-stone-50/50 flex flex-col gap-6 justify-between select-none">
           
           {/* Top Panel: Salon Calendar dashboard view */}
-          <div className="border border-neutral-800 rounded-2xl bg-neutral-950 p-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3 mb-3">
+          <div className="border border-stone-200/80 rounded-2xl bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3 mb-3">
               <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-indigo-400" />
-                <span className="text-xs font-bold font-mono text-neutral-300">ADMINISTRACE SPINLY ({selectedIndustry.label})</span>
+                <CalendarDays className="w-3.5 h-3.5 text-brand-600" />
+                <span className="text-[10px] font-bold font-mono text-stone-500">ADMINISTRACE SPINLY • kalendář</span>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 bg-neutral-800 rounded text-neutral-400 font-semibold tracking-wider">
-                LIVE STAV
+              <span className="text-[9px] font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded">
+                AKTIVNÍ rozvrh
               </span>
             </div>
 
             {/* Simulated schedule slots */}
-            <div className="space-y-2">
-              <div className="grid grid-cols-5 text-[10px] font-bold text-neutral-500 uppercase tracking-widest pb-1 border-b border-neutral-900">
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-5 text-[9px] font-bold text-stone-400 uppercase tracking-widest pb-1 border-b border-stone-100">
                 <span className="col-span-1">Čas</span>
                 <span className="col-span-2">Klient</span>
-                <span className="col-span-2 text-right">Stav</span>
+                <span className="col-span-2 text-right font-semibold">Stav SMS</span>
               </div>
 
               {[
-                { time: "09:00", name: "Klára Svobodová", status: "Hotovo", bg: "bg-neutral-800/60" },
-                { time: "11:30", name: "Aneta Veselá", status: "Hotovo", bg: "bg-neutral-800/60" },
+                { time: "09:00", name: "Klára Svobodová", status: "Odesláno", bg: "bg-[#fbfbf9]" },
+                { time: "11:30", name: "Aneta Veselá", status: "Odesláno", bg: "bg-[#fbfbf9]" },
                 { 
                   time: selectedTime, 
-                  name: isBooked ? clientName : "— Volný slot —", 
-                  status: isBooked ? "Přijato (Zaslána SMS)" : "Schváleno",
+                  name: isBooked ? clientName : "• Neobsazeno •", 
+                  status: isBooked ? "Nová" : "Volno",
                   isActiveSlot: true
                 },
-                { time: "16:15", name: "Monika Novotná", status: "Naplánováno", bg: "bg-neutral-850" }
+                { time: "16:15", name: "Monika Novotná", status: "Čeká", bg: "bg-[#fbfbf9]" }
               ].map((slot, index) => {
                 const isActive = slot.isActiveSlot && isBooked;
                 return (
                   <div 
                     key={index} 
-                    className={`grid grid-cols-5 py-2 px-2.5 rounded-lg text-xs items-center transition-all duration-300 ${
+                    className={`grid grid-cols-5 py-2 px-2.5 rounded-lg text-xs items-center transition-all duration-300 border ${
                       isActive 
-                        ? "bg-indigo-900/40 border border-indigo-500/30 text-white scale-[1.02] shadow-md shadow-indigo-900/10" 
-                        : "text-neutral-300 bg-neutral-900/50"
+                        ? "bg-brand-50/50 border-brand-300 text-stone-900 scale-[1.01] shadow-xs" 
+                        : "text-stone-600 bg-stone-50 border-transparent"
                     }`}
                   >
-                    <span className="font-mono font-bold text-neutral-400 col-span-1">{slot.time}</span>
-                    <span className={`col-span-2 truncate font-medium ${isActive ? "text-indigo-200 font-bold" : ""}`}>
+                    <span className="font-mono font-bold text-stone-400 col-span-1 text-[11px]">{slot.time}</span>
+                    <span className={`col-span-2 truncate font-bold text-xs ${isActive ? "text-brand-700 font-extrabold" : "text-stone-700"}`}>
                       {slot.name}
                     </span>
-                    <span className="col-span-2 text-right">
+                    <span className="col-span-2 text-right font-semibold">
                       {isActive ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-semibold rounded text-[10px] animate-pulse">
-                          <Check className="w-3 h-3 stroke-[3]" /> Nová Rezervace
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-brand-50 text-brand-700 font-bold rounded text-[9px] border border-brand-200 animate-pulse">
+                          ✓ Připraveno
                         </span>
-                      ) : slot.name === "— Volný slot —" ? (
-                        <span className="px-2 py-0.5 bg-neutral-800 text-neutral-400 rounded text-[10px] font-medium">
+                      ) : slot.name === "• Neobsazeno •" ? (
+                        <span className="px-1.5 py-0.5 bg-stone-100 text-stone-400 rounded text-[9px] font-bold border border-stone-200/40">
                           Volno
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 bg-neutral-800/70 text-neutral-400 rounded text-[10px] font-medium">
+                        <span className="px-1.5 py-0.5 bg-stone-50 text-stone-500 rounded text-[9px] font-bold border border-stone-100">
                           {slot.status}
                         </span>
                       )}
@@ -378,58 +378,58 @@ export default function InteractiveShowcase() {
           </div>
 
           {/* Bottom Panel: Physical Smartphone device wrapper */}
-          <div className="relative mx-auto w-full max-w-[270px]">
+          <div className="relative mx-auto w-full max-w-[240px]">
             {/* Visual vibration highlight animation on incoming SMS */}
-            <div className={`transition-all duration-200 relative ${smsIncoming ? "animate-bounce" : ""}`}>
+            <div className={`transition-all duration-200 relative ${smsIncoming ? "scale-[1.03]" : ""}`}>
               
               {/* Phone Wrapper structure */}
-              <div className="w-full bg-neutral-950 rounded-3xl border-4 border-neutral-800 shadow-2xl p-3 pb-4">
+              <div className="w-full bg-[#18181b] rounded-3xl border-4 border-stone-800 shadow-xl p-2.5 pb-3">
                 
                 {/* Physical top speaker & notch */}
-                <div className="w-24 h-4 bg-neutral-800 rounded-full mx-auto mb-3 flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-neutral-700 rounded-full" />
+                <div className="w-20 h-3 bg-stone-900 rounded-full mx-auto mb-2 flex items-center justify-center">
+                  <div className="w-1.5 h-1 bg-stone-800 rounded-full" />
                 </div>
 
-                <div className="flex items-center justify-between border-b border-neutral-900 pb-2 mb-2">
+                <div className="flex items-center justify-between border-b border-stone-800 pb-1.5 mb-2 px-1 text-stone-300">
                   <div className="flex items-center gap-1">
-                    <Smartphone className="w-3.5 h-3.5 text-neutral-500" />
-                    <span className="text-[10px] text-neutral-400 font-mono">SMS Připomínka</span>
+                    <Smartphone className="w-2.5 h-2.5 text-stone-400" />
+                    <span className="text-[8px] font-bold font-mono text-stone-400">SMS ZPRÁVA</span>
                   </div>
-                  <span className="text-[9px] text-indigo-400 font-bold font-mono">Spinly Engine</span>
+                  <span className="text-[8px] text-brand-400 font-bold tracking-wider font-mono">Spinly.cz</span>
                 </div>
 
                 {/* SMS Window screen area */}
-                <div className="min-h-[140px] bg-neutral-900 rounded-xl p-2.5 flex flex-col justify-end">
+                <div className="min-h-[110px] bg-stone-900 rounded-xl p-2 flex flex-col justify-end">
                   
                   {!smsTimer ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-2 text-neutral-500 space-y-1">
-                      <MessageSquare className="w-6 h-6 stroke-[1.5] text-neutral-600 animate-pulse" />
-                      <p className="text-[10px] font-medium leading-relaxed">
-                        Čeká se na potvrzení rezervace klientem...
+                    <div className="h-full flex flex-col items-center justify-center text-center p-2 text-stone-500 space-y-1">
+                      <MessageSquare className="w-4 h-4 text-stone-700 animate-pulse" />
+                      <p className="text-[9px] font-semibold leading-normal">
+                        Krok 1: Odešlete rezervaci nalevo...
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5 animate-fadeIn">
+                    <div className="space-y-1.5 animate-fadeIn text-left">
                       
                       {/* Incoming alert badge */}
                       {smsIncoming && (
-                        <div className="text-center py-1 bg-emerald-500/10 rounded-lg text-emerald-400 text-[9px] font-bold animate-pulse">
-                          📳 SMS doručena na: {clientPhone}
+                        <div className="text-center py-1 bg-brand-950/40 rounded-lg text-emerald-400 text-[8px] font-bold animate-pulse border border-brand-500/10">
+                          💬 SMS doručena na mobil!
                         </div>
                       )}
 
-                      {/* Outgoing simulated gray message bubble */}
-                      <div className="self-start max-w-[85%] bg-neutral-800 text-neutral-300 text-[10px] rounded-2xl rounded-bl-sm p-2 leading-relaxed">
-                        Chytrý SMS asistent Spinly posílá automatickou zprávu klienta.
+                      {/* Outgoing simulated message bubble */}
+                      <div className="self-start max-w-[90%] bg-stone-800 text-stone-300 text-[8.5px] rounded-xl rounded-bl-sm p-1.5 leading-normal border border-stone-750 font-semibold">
+                        Nezávislý asistent uložil booking:
                       </div>
 
                       {/* Real Customer automated text */}
-                      <div className="self-end max-w-[90%] bg-indigo-600 text-white text-[10px] font-medium rounded-2xl rounded-br-sm p-2.5 shadow-md shadow-indigo-950/40 relative">
-                        <div className="font-bold text-[9px] text-indigo-100 flex items-center gap-1 mb-1">
-                          <ShieldCheck className="w-3 h-3 text-emerald-400" /> SPINLY POTVRZENÍ
+                      <div className="self-end max-w-[98%] bg-brand-600 text-white text-[9px] font-bold rounded-xl rounded-br-sm p-2 shadow-md relative leading-snug">
+                        <div className="text-[8px] text-white/90 uppercase tracking-widest flex items-center gap-1 mb-1 font-mono font-black">
+                          <Check className="w-2.5 h-2.5 stroke-[4]" /> SPINLY INFO
                         </div>
-                        <p className="leading-relaxed">
-                          Dobrý den, {clientName}. Vaše rezervace na službu <strong className="text-emerald-300 font-semibold">{selectedIndustry.service}</strong> v {selectedDay} v <strong className="font-bold underline text-white">{selectedTime}</strong> byla úspěšně schválena. Těšíme se na vás!
+                        <p className="font-semibold text-[8.5px]">
+                          Ahoj {clientName}. Tvoje schůzka na <strong className="underline">{selectedIndustry.service}</strong> v {selectedDay} v <strong className="underline">{selectedTime}</strong> byla potvrzena.
                         </p>
                       </div>
 
@@ -441,8 +441,8 @@ export default function InteractiveShowcase() {
 
               {/* Ping notification circle pointer */}
               {smsIncoming && (
-                <div className="absolute -top-3 -right-3 w-6 h-6 bg-emerald-500 text-neutral-950 rounded-full font-bold text-xs flex items-center justify-center animate-bounce shadow-lg shadow-emerald-500/20">
-                  !
+                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-550 text-white rounded-full font-black text-[9px] flex items-center justify-center animate-ping">
+                  •
                 </div>
               )}
 
@@ -450,9 +450,9 @@ export default function InteractiveShowcase() {
           </div>
 
           {/* Micro stats banner bottom */}
-          <div className="text-center pt-2">
-            <p className="text-[11px] text-neutral-500 leading-normal">
-              Toto automatické SMS upozornění se odešle ihned po schválení bez vašeho zásahu. <strong>Úspora času: 100 %!</strong>
+          <div className="text-center">
+            <p className="text-[10px] text-stone-400 leading-normal max-w-xs mx-auto font-medium">
+              Zákazník ví termín, vy máte volné ruce pro své podnikání. <strong>Míra nepřítomnosti klesne o 92 %!</strong>
             </p>
           </div>
 
