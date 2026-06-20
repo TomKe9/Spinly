@@ -1,52 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    match /bookings/{bookingId} {
-      allow create: if bookingId is string 
-                    && bookingId.size() <= 128
-                    && request.resource.data.keys().hasAll(['service', 'day', 'time', 'clientName', 'clientPhone', 'status', 'industry', 'createdAt'])
-                    && request.resource.data.keys().size() == 8
-                    && request.resource.data.service is string
-                    && request.resource.data.service.size() <= 100
-                    && request.resource.data.day is string
-                    && request.resource.data.day.size() <= 50
-                    && request.resource.data.time is string
-                    && request.resource.data.time.size() <= 20
-                    && request.resource.data.clientName is string
-                    && request.resource.data.clientName.size() <= 100
-                    && request.resource.data.clientPhone is string
-                    && request.resource.data.clientPhone.size() <= 30
-                    && request.resource.data.status is string
-                    && request.resource.data.status.size() <= 20
-                    && request.resource.data.industry is string
-                    && request.resource.data.industry.size() <= 50
-                    && request.resource.data.createdAt is timestamp;
-      allow read: if true;
-    }
-
     match /leads/{leadId} {
-      allow create: if leadId is string
-                    && leadId.size() <= 128
-                    && request.resource.data.keys().hasAll(['businessName', 'segment', 'name', 'email', 'phone', 'plan', 'createdAt'])
-                    && request.resource.data.keys().size() == 7
-                    && request.resource.data.businessName is string
-                    && request.resource.data.businessName.size() <= 100
-                    && request.resource.data.segment is string
-                    && request.resource.data.segment.size() <= 100
-                    && request.resource.data.name is string
-                    && request.resource.data.name.size() <= 100
-                    && request.resource.data.email is string
-                    && request.resource.data.email.size() <= 150
-                    && request.resource.data.phone is string
-                    && request.resource.data.phone.size() <= 30
-                    && request.resource.data.plan is string
-                    && request.resource.data.plan.size() <= 50
-                    && request.resource.data.createdAt is timestamp;
+      allow read, write: if true;
+    }
+    match /bookings/{bookingId} {
+      allow read, create: if true;
+      allow update, delete: if request.auth != null;
+    }
+    match /services/{serviceId} {
       allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /businessProfiles/{profileId} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 }

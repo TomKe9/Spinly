@@ -23,7 +23,9 @@ import {
   Smartphone,
   Shield,
   CheckCircle,
-  Award
+  Award,
+  Menu,
+  X
 } from "lucide-react";
 
 import { INDUSTRIES, PRICING_PLANS, REVIEWS, FEATURES } from "./types";
@@ -52,6 +54,7 @@ export default function App() {
   const [billingPeriod, setBillingPeriod] = useState<"monthly" | "yearly">("yearly");
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [selectedPlanForModal, setSelectedPlanForModal] = useState("Pro");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Multi-merchant state-based routing states
   const [view, setView] = useState<"landing" | "dashboard" | "client-booking">("landing");
@@ -279,14 +282,14 @@ export default function App() {
     <div className="min-h-screen bg-[#fafafa] selection:bg-indigo-600 selection:text-white font-sans antialiased text-neutral-900 scroll-smooth">
       
       {/* 1. Header Navigation Menu */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-neutral-100 transition-all">
+      <header className="sticky top-0 z-45 bg-white/90 backdrop-blur-md border-b border-neutral-100 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
           
           {/* Logo element matches humble branding rules */}
           <a 
             href="#" 
-            onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); }} 
-            className="flex items-center gap-2.5 hover:opacity-90 active:scale-98 transition-all"
+            onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({ top: 0, behavior: "smooth" }); }} 
+            className="flex items-center gap-2.5 hover:opacity-90 active:scale-98 transition-all shrink-0"
           >
             <div className="bg-indigo-600 text-white p-2.5 rounded-xl flex items-center justify-center font-bold tracking-tight shadow-md shadow-indigo-150">
               <CalendarCheck className="w-5 h-5 stroke-[2.5]" />
@@ -306,18 +309,16 @@ export default function App() {
             <a href="#faq" className="hover:text-indigo-600 transition-colors">Časté dotazy</a>
           </nav>
 
-          {/* Nav CTAs */}
-          <div className="flex items-center gap-3">
+          {/* Desktop Nav CTAs */}
+          <div className="hidden md:flex items-center gap-3">
             {currentUser ? (
-              <>
-                <button
-                  onClick={() => setView(view === "dashboard" ? "landing" : "dashboard")}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-5 rounded-xl text-sm shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
-                >
-                  <Zap className="w-4 h-4 fill-white" />
-                  {view === "dashboard" ? "Zpět na web" : "Administrace"}
-                </button>
-              </>
+              <button
+                onClick={() => setView(view === "dashboard" ? "landing" : "dashboard")}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-5 rounded-xl text-sm shadow-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Zap className="w-4 h-4 fill-white" />
+                {view === "dashboard" ? "Zpět na web" : "Administrace"}
+              </button>
             ) : (
               <>
                 <button 
@@ -335,7 +336,93 @@ export default function App() {
               </>
             )}
           </div>
+
+          {/* Mobile & Tablet Toggle (Hamburger menu button / Tři čárky pod sebou) */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              type="button"
+              className="p-2.5 rounded-xl hover:bg-neutral-100 text-neutral-700 transition-all border border-transparent hover:border-neutral-200 cursor-pointer flex items-center justify-center"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6 stroke-[2]" />
+              ) : (
+                <Menu className="w-6 h-6 stroke-[2]" />
+              )}
+            </button>
+          </div>
+
         </div>
+
+        {/* Elegant Animated Dropdown Mobile Drawer Overlay & Sheet */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-neutral-100 bg-white/95 backdrop-blur-lg absolute w-full left-0 shadow-xl z-50 animate-slideUp">
+            <div className="px-4 py-6 space-y-6">
+              
+              {/* Vertical stacked link paths */}
+              <nav className="flex flex-col gap-4 font-semibold text-neutral-700">
+                {[
+                  { href: "#problém-řešení", label: "Problém vs. Řešení" },
+                  { href: "#funkce", label: "Klíčové funkce" },
+                  { href: "#recenze", label: "Hodnocení" },
+                  { href: "#cenik", label: "Ceník" },
+                  { href: "#faq", label: "Časté dotazy" }
+                ].map((l) => (
+                  <a
+                    key={l.href}
+                    href={l.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="hover:text-indigo-600 text-base py-1.5 border-b border-neutral-50 px-1 transition-colors flex items-center justify-between"
+                  >
+                    <span>{l.label}</span>
+                    <span className="text-neutral-300 text-sm">→</span>
+                  </a>
+                ))}
+              </nav>
+
+              {/* Action items stacked */}
+              <div className="flex flex-col gap-3 pt-3">
+                {currentUser ? (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setView(view === "dashboard" ? "landing" : "dashboard");
+                    }}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-5 rounded-2xl text-center shadow-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Zap className="w-4 h-4 fill-white" />
+                    {view === "dashboard" ? "Zpět na hlavní web" : "Otevřít Administraci"}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setAuthMode("register");
+                        setIsLoginModalOpen(true);
+                      }}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-5 rounded-2xl text-center shadow-md shadow-indigo-150 transition-all active:scale-95 cursor-pointer text-sm"
+                    >
+                      Zaregistrovat se zdarma
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        setAuthMode("login");
+                        setIsLoginModalOpen(true);
+                      }}
+                      className="w-full bg-slate-100 hover:bg-slate-250 text-slate-800 font-bold py-3 px-5 rounded-2xl text-center transition-all active:scale-95 cursor-pointer text-sm"
+                    >
+                      Vstoupit do účtu (Přihlášení)
+                    </button>
+                  </>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 2. Hero Section */}
@@ -597,8 +684,123 @@ export default function App() {
 
           </div>
 
+          {/* Srovnání s konkurencí aneb Proč Spinly nemá konkurenci */}
+          <div className="mt-24 space-y-12">
+            <div className="text-center max-w-3xl mx-auto space-y-3">
+              <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3.5 py-1.5 rounded-full border border-indigo-100">
+                Nemáme konkurenci
+              </span>
+              <h3 className="text-2xl sm:text-3xl font-display font-extrabold text-neutral-950 tracking-tight">
+                Jak si vede Spinly ve srovnání s ostatními?
+              </h3>
+              <p className="text-neutral-500 text-sm leading-relaxed">
+                Navrhli jsme rezervační systém tak, aby vyřešil největší nedostatky starých těžkopádných kalendářů a vrátil vám radost z podnikání.
+              </p>
+            </div>
+
+            {/* Premium Interactive Comparison Grid */}
+            <div className="max-w-5xl mx-auto bg-white border border-neutral-150 rounded-3xl overflow-hidden shadow-2xl relative">
+              <div className="absolute top-0 right-0 p-16 bg-indigo-600/5 rounded-full blur-2xl -z-10" />
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-neutral-150 bg-slate-50/50">
+                      <th className="py-5 px-6 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/3">Vlastnost / Funkce</th>
+                      <th className="py-5 px-6 text-sm font-extrabold text-indigo-700 bg-indigo-50/40 relative">
+                        <span className="absolute top-0 inset-x-0 h-1 bg-indigo-600" />
+                        ✨ Spinly (Moderní kalendář)
+                      </th>
+                      <th className="py-5 px-6 text-xs font-bold text-neutral-500">Běžné složité kalendáře</th>
+                      <th className="py-5 px-6 text-xs font-bold text-neutral-500">Papírový diář</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-sm">
+                    {[
+                      {
+                        feat: "Rychlá rezervace pro klienty",
+                        spinly: "Ano, na 3 kliknutí (do 12 sekund). Bez nutnosti zbytečného zakládání účtů nebo hesel předem.",
+                        spinlyOk: true,
+                        legacy: "Složitá registrace se schvalováním e-mailu před výběrem času.",
+                        papir: "Pouze ručně při zvednutí telefonu uprostřed práce."
+                      },
+                      {
+                        feat: "Onboarding & Výrazy dle oboru",
+                        spinly: "Ano. Modulární kalendář se sám na 1 kliknutí nastaví – místo 'Assetu' vidíte 'Dvorec', 'Služba' nebo 'Křeslo'.",
+                        spinlyOk: true,
+                        legacy: "Univerzální, s nejasným a těžkopádným cizím názvoslovím.",
+                        papir: "Jen obyčejný prázdný sešit s ručními popisky."
+                      },
+                      {
+                        feat: "No-show SMS automatizace",
+                        spinly: "Ano. Dvoucestné automatické SMS i přes WhatsApp doručované s 99.8% spolehlivostí.",
+                        spinlyOk: true,
+                        legacy: "Pouze e-maily, které zapadnou do složky Spam.",
+                        papir: "Nemožné bez úmorného ručního obvolávání večer."
+                      },
+                      {
+                        feat: "Obousměrná live synchronizace",
+                        spinly: "Ano. Okamžitý přenos z vašeho Google i Apple Kalendáře v obou směrech bez zpoždění.",
+                        spinlyOk: true,
+                        legacy: "Často chybí, nebo s pomalým časovým odstupem několika hodin.",
+                        papir: "Nemožné. Neustálé riziko překryvů."
+                      },
+                      {
+                        feat: "Technická podpora v češtině",
+                        spinly: "Ano. Osobní a telefonická asistence s nastavením systému zcela zdarma a lidsky.",
+                        spinlyOk: true,
+                        legacy: "Pouze e-maily v anglickém jazyce s odpovědí do 3 dnů.",
+                        papir: "Není."
+                      },
+                      {
+                        feat: "Rychlost načítání & Plynulost",
+                        spinly: "Přednačteno do 1.2 sekundy s pohlcujícími mikroanimacemi. Bez čekání a bílých obrazovek.",
+                        spinlyOk: true,
+                        legacy: "Pomalé stahování zastaralých rozhraní, těžké skripty.",
+                        papir: "Okamžité otevření sešitu, ale hrozí ztráta politím."
+                      }
+                    ].map((row, idx) => (
+                      <tr key={idx} className="hover:bg-neutral-50/70 transition-colors">
+                        <td className="py-4.5 px-6 font-bold text-neutral-800 text-xs sm:text-sm">{row.feat}</td>
+                        <td className="py-4.5 px-6 font-medium text-indigo-950 bg-indigo-50/20 text-xs sm:text-sm">
+                          <div className="flex items-start gap-2">
+                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">✓</span>
+                            <span>{row.spinly}</span>
+                          </div>
+                        </td>
+                        <td className="py-4.5 px-6 text-neutral-500 text-xs">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-amber-500 text-md shrink-0 mt-0.5">⚠️</span>
+                            <span>{row.legacy}</span>
+                          </div>
+                        </td>
+                        <td className="py-4.5 px-6 text-neutral-400 text-xs">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-rose-500 text-md shrink-0 mt-0.5">✕</span>
+                            <span>{row.papir}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="bg-neutral-900 text-neutral-300 p-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+                <span className="font-semibold text-white">✨ Chcete nejlepší rezervační systém v Česku?</span>
+                <button
+                  type="button"
+                  onClick={() => openLeadForPlan("Pro")}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all cursor-pointer animate-pulse shrink-0"
+                >
+                  Začít používat Spinly hned teď
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Central bottom value statement block */}
-          <div className="mt-14 bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center max-w-3xl mx-auto">
+          <div className="mt-16 bg-indigo-50 border border-indigo-100 rounded-2xl p-6 text-center max-w-3xl mx-auto">
             <p className="text-sm text-indigo-900 leading-relaxed">
               💡 <strong>Statistika z praxe:</strong> Podnikatelé v Česku, kteří přešli z papírového kalendáře na rezervační odkaz Spinly, zaznamenali v průměru <strong>nárůst objednávek o 24 %</strong> hned během prvních dvou měsíců.
             </p>

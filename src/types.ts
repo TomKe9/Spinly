@@ -37,6 +37,8 @@ export const INDUSTRIES = [
   { id: "hair", label: "Kadeřnictví", icon: "Scissors", service: "Střih & Balayage" },
   { id: "massage", label: "Masáže & Wellness", icon: "Activity", service: "Relaxační masáž zad" },
   { id: "physio", label: "Fyzioterapie", icon: "HeartPulse", service: "Vstupní vyšetření" },
+  { id: "fitness", label: "Fitness trenéři", icon: "Activity", service: "Individuální trénink" },
+  { id: "courts", label: "Tenisová hala & Sportoviště", icon: "CalendarCheck", service: "Pronájem kurtu" },
   { id: "other", label: "Ostatní služby", icon: "CalendarCheck", service: "Konzultace" },
 ];
 

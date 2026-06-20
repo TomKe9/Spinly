@@ -1,13 +1,119 @@
 <!doctype html>
-<html lang="en">
+<html lang="cs" class="scroll-smooth">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    
+    <!-- SEO & Metadata -->
+    <title>Spinly - Rezervační systém pro živnostníky a salony</title>
+    <meta name="description" content="Moderní, rychlý a jednoduchý rezervační kalendář pro kadeřnictví, salony krásy, sportoviště i fyzioterapeuty. Rezervace 24/7 s SMS připomínkami a synchronizací." />
+    <meta name="keywords" content="rezervační systém, kalendář online, kadeřnictví, kosmetický salon, rezervace, plánování směn, spinly, czech booking" />
+    
+    <!-- Open Graph / Facebook / Messenger -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Spinly - Rezervační systém pro živnostníky a salony" />
+    <meta property="og:description" content="Lidé se k vám objednají na 3 kliknutí. Získejte chytré SMS připomínky, plánování směn a kalendář zdarma." />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&w=1200&h=630&q=80" />
+    <meta property="og:url" content="https://spinly.app" />
+    <meta property="og:site_name" content="Spinly" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Spinly - Online rezervace na 3 kliknutí" />
+    <meta name="twitter:description" content="Automatické SMS připomínky a stop zapomenutým termínům." />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1616394584738-fc6e612e71b9?auto=format&fit=crop&w=1200&h=630&q=80" />
+
+    <!-- Google Fonts Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <style>
+      /* Embedded tiny pre-loader styling */
+      .spinly-preload-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        inset: 0;
+        background-color: #fafafa;
+        font-family: system-ui, -apple-system, sans-serif;
+        z-index: 999999;
+        transition: opacity 0.3s ease;
+      }
+      .spinly-logo-icon {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4);
+        margin-bottom: 24px;
+        animation: pulse 2s infinite ease-in-out;
+      }
+      .spinly-logo-text {
+        font-size: 24px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.05em;
+        margin-bottom: 8px;
+      }
+      .spinly-logo-sub {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .spinly-spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #4f46e5;
+        border-radius: 50%;
+        animation: spin 0.8s infinite linear;
+        margin-top: 32px;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.08); opacity: 0.9; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Animated high-fidelity skeleton preloader displayed during script compilation -->
+      <div class="spinly-preload-wrapper" id="spinly-initial-loader">
+        <div class="spinly-logo-icon">
+          <!-- Inline elegant white double curve matching booking loop -->
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
+            <path d="M21 3v5h-5"/>
+          </svg>
+        </div>
+        <div class="spinly-logo-text">Spinly</div>
+        <div class="spinly-logo-sub">Načítání rezervačního systému...</div>
+        <div class="spinly-spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Clean up preloader immediately when React boots or elements render
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const loader = document.getElementById('spinly-initial-loader');
+          if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => loader.remove(), 300);
+          }
+        }, 1200); // Small aesthetic window to notice the responsive spinner
+      });
+    </script>
   </body>
 </html>
 

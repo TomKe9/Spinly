@@ -56,6 +56,23 @@ export default function ClientBookingPage({ businessId, onBackToLanding }: Clien
   const [saving, setSaving] = useState(false);
   const [smsVisible, setSmsVisible] = useState(false);
 
+  const isCourts = profile?.segment === "courts";
+  const isFitness = profile?.segment === "fitness";
+  
+  const step1Label = isCourts 
+    ? "1. Vyberte kurt / hrací plochu" 
+    : isFitness 
+      ? "1. Vyberte požadovaný trénink / lekci" 
+      : "1. Vyberte požadované ošetření / službu";
+
+  const step2Label = isCourts 
+    ? "2. Zvolte den rezervace" 
+    : "2. Zvolte den návštěvy";
+
+  const step3Label = isCourts 
+    ? "3. Vyberte si hrací časový slot" 
+    : "3. Vyberte si dostupný volný čas";
+
   // Load business profile and details
   useEffect(() => {
     async function getProfile() {
@@ -146,6 +163,18 @@ export default function ClientBookingPage({ businessId, onBackToLanding }: Clien
           { id: "p1", name: "Vstupní fyzioterapeutické vyšetření", price: 1200, duration: 60 },
           { id: "p2", name: "Individuální rehabilitační cvičení", price: 700, duration: 45 },
           { id: "p3", name: "Kineziotaping zad a šíje", price: 290, duration: 20 }
+        ];
+      case "fitness":
+        return [
+          { id: "f1", name: "Formování postavy (Osobní trénink)", price: 600, duration: 60 },
+          { id: "f2", name: "Kondiční kruhový trénink (Lekce)", price: 250, duration: 60 },
+          { id: "f3", name: "Sestavení tréninkového plánu online", price: 1200, duration: 30 }
+        ];
+      case "courts":
+        return [
+          { id: "c1", name: "Pronájem vnitřního kurtu (Antuka)", price: 400, duration: 60 },
+          { id: "c2", name: "Pronájem venkovního kurtu (Tráva)", price: 300, duration: 60 },
+          { id: "c3", name: "Tréninková lekce s profesionálem", price: 800, duration: 60 }
         ];
       default:
         return [
@@ -281,10 +310,10 @@ export default function ClientBookingPage({ businessId, onBackToLanding }: Clien
             {/* Right Column Booking Form Scheduler */}
             <form onSubmit={handleClientSubmitBooking} className="md:col-span-8 p-6 md:p-8 space-y-6">
               
-              {/* STep 1: Service selector */}
+              {/* Step 1: Service selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                  1. Vyberte požadovanou ošetření / službu
+                  {step1Label}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {services.map((ser) => {
@@ -320,7 +349,7 @@ export default function ClientBookingPage({ businessId, onBackToLanding }: Clien
               {/* Step 2: Date Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                  2. Zvolte den návštěvy
+                  {step2Label}
                 </label>
                 <div className="flex gap-2.5">
                   {["Dnes", "Zítra", "Pondělí"].map((day) => {
@@ -349,7 +378,7 @@ export default function ClientBookingPage({ businessId, onBackToLanding }: Clien
               {/* Step 3: Hour Slots selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                  3. Vyberte si dostupný volný čas
+                  {step3Label}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {TIME_SLOTS.map((time) => {
