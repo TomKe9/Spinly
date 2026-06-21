@@ -26,7 +26,8 @@ import {
   Award,
   Menu,
   X,
-  Wallet
+  Wallet,
+  Search
 } from "lucide-react";
 
 import { INDUSTRIES, PRICING_PLANS, REVIEWS, FEATURES } from "./types";
@@ -45,7 +46,7 @@ import {
   onAuthStateChanged,
   updateProfile 
 } from "firebase/auth";
-import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, collection, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import Dashboard from "./components/Dashboard";
 import ClientBookingPage from "./components/ClientBookingPage";
@@ -76,6 +77,35 @@ export default function App() {
   const [authSegment, setAuthSegment] = useState("salon");
   const [authError, setAuthError] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
+
+  // List of salons fetched from firebase db
+  const [salonsList, setSalonsList] = useState<any[]>([]);
+  const [loadingSalonsList, setLoadingSalonsList] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Live stream salons list for autocomplete search
+  useEffect(() => {
+    setLoadingSalonsList(true);
+    const unsubscribe = onSnapshot(
+      collection(db, "leads"),
+      (snapshot) => {
+        const list: any[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data && data.businessName) {
+            list.push({ id: doc.id, ...data });
+          }
+        });
+        setSalonsList(list);
+        setLoadingSalonsList(false);
+      },
+      (error) => {
+        console.error("Error loading salons stream:", error);
+        setLoadingSalonsList(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
 
   // Sync auth state
   useEffect(() => {
@@ -164,6 +194,8 @@ export default function App() {
         setAuthError("Heslo musí mít alespoň 6 znaků.");
       } else if (err.code === "auth/invalid-credential") {
         setAuthError("Nesprávné přihlašovací údaje.");
+      } else if (err.code === "auth/operation-not-allowed" || String(err).includes("operation-not-allowed")) {
+        setAuthError("Nepovolený přístup: Registrace e-mailem/heslem není ve vašem Firebase projektu povolena. Povolte prosím 'E-mail/heslo' v konzoli Firebase (Authentication -> Sign-in method), nebo použijte přihlášení přes Google / Host Demo.");
       } else {
         setAuthError("Chyba ověření: " + (err.message || String(err)));
       }
@@ -548,6 +580,137 @@ export default function App() {
             <p className="mt-6 text-sm sm:text-base text-stone-500 max-w-2xl mx-auto leading-relaxed font-semibold">
               {currentCopy.sub} Nechte své zákazníky rezervovat se <strong className="text-stone-800">samy 24/7</strong> bez nutnosti telefonování. Ušetřete až 12 hodin týdně díky automatizovaným <strong className="text-stone-850">dvoucestným SMS</strong>.
             </p>
+
+            {/* Hledat salon nebo službu - Vyhledávač */}
+            <div className="max-w-xl mx-auto mt-9 relative z-30">
+              <div className="relative flex items-center bg-white border border-stone-250 hover:border-stone-400 focus-within:border-brand-500 focus-within:ring-3 focus-within:ring-brand-100 rounded-2xl shadow-sm transition-all">
+                <Search className="w-5 h-5 text-stone-400 shrink-0 ml-4 stroke-[2.5]" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Hledat salon, město nebo službu (např. 'Bomton', 'Ostrava', 'střih')..."
+                  className="w-full px-3 py-4 text-xs font-bold text-stone-900 border-none outline-none focus:ring-0 bg-transparent placeholder-stone-400 rounded-r-2xl"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="p-1 text-stone-400 hover:text-stone-700 cursor-pointer mr-3 hover:bg-stone-100 rounded-full transition-all"
+                  >
+                    <X className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                )}
+              </div>
+
+
+
+              {/* Dropdown with results */}
+              {searchQuery.trim().length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-stone-200/90 rounded-2xl shadow-xl overflow-hidden z-50 text-left max-h-80 overflow-y-auto animate-fadeIn">
+                  <div className="p-3 bg-stone-50/50 border-b border-stone-100 flex items-center justify-between text-xxs font-mono text-stone-400 font-extrabold uppercase tracking-wider">
+                    <span>Výsledky vyhledávání pro: "{searchQuery}"</span>
+                    <span>Nalezeno: {
+                      salonsList.filter((s) => {
+                        const q = searchQuery.toLowerCase();
+                        const matchesName = s.businessName?.toLowerCase().includes(q);
+                        const matchesContact = s.name?.toLowerCase().includes(q);
+                        
+                        let segments = "";
+                        if (s.segment === "hair") segments = "kadeřnictví střih kadeřník barva kadeřnice barber olivový joshua";
+                        else if (s.segment === "salon") segments = "kosmetika nehty manikúra pedikúra řasy krása bomton sparta clinic";
+                        else if (s.segment === "massage") segments = "masáže masáž wellness thajská spa relaxace aura siam";
+                        else if (s.segment === "physio") segments = "fyzioterapie rehabilitace záda blokády cvičení doktor chodov reha";
+                        else if (s.segment === "fitness") segments = "posilovna fitness trenér cvičení trénink sport vlk";
+                        else if (s.segment === "courts") segments = "tenis badminton squash hřiště tělocvična kurty štvanice";
+
+                        const matchesSegment = segments.includes(q) || s.segment?.toLowerCase().includes(q);
+                        return matchesName || matchesContact || matchesSegment;
+                      }).length
+                    }</span>
+                  </div>
+
+                  {(() => {
+                    const filtered = salonsList.filter((s) => {
+                      const q = searchQuery.toLowerCase();
+                      const matchesName = s.businessName?.toLowerCase().includes(q);
+                      const matchesContact = s.name?.toLowerCase().includes(q);
+                      
+                      let segments = "";
+                      if (s.segment === "hair") segments = "kadeřnictví střih kadeřník barva kadeřnice barber olivový joshua";
+                      else if (s.segment === "salon") segments = "kosmetika nehty manikúra pedikúra řasy krása bomton sparta clinic";
+                      else if (s.segment === "massage") segments = "masáže masáž wellness thajská spa relaxace aura siam";
+                      else if (s.segment === "physio") segments = "fyzioterapie rehabilitace záda blokády cvičení doktor chodov reha";
+                      else if (s.segment === "fitness") segments = "posilovna fitness trenér cvičení trénink sport vlk";
+                      else if (s.segment === "courts") segments = "tenis badminton squash hřiště tělocvična kurty štvanice";
+
+                      const matchesSegment = segments.includes(q) || s.segment?.toLowerCase().includes(q);
+                      return matchesName || matchesContact || matchesSegment;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="p-6 text-center">
+                          <p className="text-stone-500 font-bold text-xs">Žádanému vyhledávání neodpovídá žádný podnik k rezervaci.</p>
+                          <p className="text-stone-400 text-[10px] mt-1 font-semibold">Zkuste zadat klíčové slovo jako např. "Bomton", "střih", "Ostrava" nebo "Arsov".</p>
+                          
+                          {/* Empty state details */}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="divide-y divide-stone-100">
+                        {filtered.map((salon) => (
+                          <div 
+                            key={salon.id}
+                            className="p-3.5 hover:bg-stone-50/70 flex items-center justify-between gap-4 transition-all"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded-xl bg-brand-50 text-brand-600 border border-brand-100 shadow-xxs">
+                                {salon.segment === "hair" ? (
+                                  <Scissors className="w-4 h-4 stroke-[2.5]" />
+                                ) : salon.segment === "physio" ? (
+                                  <Activity className="w-4 h-4 stroke-[2.5]" />
+                                ) : (
+                                  <CalendarCheck className="w-4 h-4 stroke-[2.5]" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <h5 className="font-extrabold text-stone-900 text-xs truncate">{salon.businessName}</h5>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-stone-500 font-semibold">
+                                  <span className="uppercase font-extrabold text-brand-700 bg-brand-50/50 px-1 py-0.5 rounded text-[9px] border border-brand-100/50">
+                                    {salon.segment === "hair" && "Kadeřnictví & Barber"}
+                                    {salon.segment === "salon" && "Kosmetický Salon"}
+                                    {salon.segment === "massage" && "Masáže & Spa"}
+                                    {salon.segment === "physio" && "Fyzioterapie"}
+                                    {salon.segment === "fitness" && "Osobní trénink"}
+                                    {salon.segment === "courts" && "Sportoviště"}
+                                    {salon.segment === "other" && "Služby"}
+                                  </span>
+                                  <span>•</span>
+                                  <span>{salon.name}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setSelectedBusinessId(salon.id);
+                                setView("client-booking");
+                              }}
+                              className="bg-[#242424] hover:bg-black text-white shrink-0 font-extrabold px-3 py-1.5 rounded-xl text-[10px] uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all active:scale-95 shadow-xs"
+                            >
+                              <span>Rezervovat</span>
+                              <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
 
             {/* Main Action Buttons */}
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">

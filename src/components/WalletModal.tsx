@@ -12,7 +12,8 @@ import {
   ArrowRight,
   Info,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  Search
 } from "lucide-react";
 import { 
   doc, 
@@ -57,6 +58,8 @@ export default function WalletModal({ isOpen, onClose, onOpenAuth }: WalletModal
   const [paySubmitting, setPaySubmitting] = useState(false);
   const [paySuccess, setPaySuccess] = useState(false);
   const [payError, setPayError] = useState("");
+  const [salonSearchQuery, setSalonSearchQuery] = useState("");
+  const [showSalonSearchResults, setShowSalonSearchResults] = useState(false);
 
   // Bookings list for active payment
   const [clientBookings, setClientBookings] = useState<any[]>([]);
@@ -693,26 +696,89 @@ export default function WalletModal({ isOpen, onClose, onOpenAuth }: WalletModal
                       )}
 
                       {/* Select Salon from database leads */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5 font-mono">Příjemce (Zvolte salon / barbera)</label>
+                      <div className="relative">
+                        <label className="block text-[10px] font-bold text-stone-500 uppercase tracking-widest mb-1.5 font-mono">Příjemce (Napište nebo zvolte salon)</label>
                         {loadingSalons ? (
                           <div className="py-2.5 text-center text-xxs font-mono text-stone-400 uppercase tracking-widest">Hledám salony partnerské sítě...</div>
                         ) : (
-                          <select
-                            value={selectedSalon?.id || ""}
-                            onChange={(e) => {
-                              const match = salons.find(s => s.id === e.target.value);
-                              if (match) setSelectedSalon(match);
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-stone-200 focus:outline-none focus:border-stone-400 text-xs text-stone-900 font-bold rounded-xl"
-                          >
-                            <option value="" disabled>Vyberte obchodníka</option>
-                            {salons.map((salon) => (
-                              <option key={salon.id} value={salon.id}>
-                                {salon.businessName} (Správce: {salon.name})
-                              </option>
-                            ))}
-                          </select>
+                          <div className="relative">
+                            <div className="relative flex items-center bg-white border border-stone-200 focus-within:border-stone-400 rounded-xl overflow-hidden">
+                              <Search className="w-4 h-4 text-stone-400 ml-3 shrink-0" />
+                              <input
+                                type="text"
+                                value={salonSearchQuery}
+                                onChange={(e) => {
+                                  setSalonSearchQuery(e.target.value);
+                                  setShowSalonSearchResults(true);
+                                }}
+                                onFocus={() => setShowSalonSearchResults(true)}
+                                placeholder={selectedSalon ? `${selectedSalon.businessName} (zvoleno ✓)` : "Napište písmeno k vyhledání salonu..."}
+                                className="w-full px-3 py-2.5 text-xs text-stone-900 font-bold bg-[#faf9f5]/20 border-none outline-none focus:ring-0 placeholder-stone-400"
+                              />
+                              {(salonSearchQuery || selectedSalon) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setSalonSearchQuery(""); setSelectedSalon(null); }}
+                                  className="p-1 text-stone-404 hover:text-stone-702 mr-2 rounded-full hover:bg-stone-100"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Autocomplete query response listing */}
+                            {showSalonSearchResults && (
+                              <div className="absolute left-0 right-0 z-50 mt-1 bg-white border border-stone-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-stone-100 animate-fadeIn">
+                                {(() => {
+                                  const query = salonSearchQuery.toLowerCase().trim();
+                                  const filtered = salons.filter(s => 
+                                    s.businessName?.toLowerCase().includes(query) ||
+                                    s.name?.toLowerCase().includes(query)
+                                  );
+
+                                  if (filtered.length === 0) {
+                                    return (
+                                      <div className="p-3 text-center text-stone-405 text-xxs font-semibold">
+                                        Žádný partnerský salon neodpovídá vyhledávání.
+                                      </div>
+                                    );
+                                  }
+
+                                  return filtered.map((sal) => {
+                                    const isCurrentlySelected = selectedSalon?.id === sal.id;
+                                    return (
+                                      <button
+                                        key={sal.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedSalon(sal);
+                                          setSalonSearchQuery("");
+                                          setShowSalonSearchResults(false);
+                                        }}
+                                        className={`w-full text-left p-2.5 text-xs transition-all flex items-center justify-between hover:bg-stone-50 ${isCurrentlySelected ? "bg-brand-50" : ""}`}
+                                      >
+                                        <div>
+                                          <p className="font-extrabold text-stone-900">{sal.businessName}</p>
+                                          <p className="text-[10px] text-stone-500 mt-0.5">Manažer: {sal.name} • obor: {sal.segment}</p>
+                                        </div>
+                                        {isCurrentlySelected && (
+                                          <span className="text-xxs bg-brand-100 text-brand-800 px-1.5 py-0.5 rounded-full font-bold">Zvoleno</span>
+                                        )}
+                                      </button>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            )}
+
+                            {/* Selection state ribbon */}
+                            {selectedSalon && !showSalonSearchResults && (
+                              <div className="mt-1.5 p-2 bg-emerald-50 rounded-lg border border-emerald-150 flex items-center justify-between text-xxs font-semibold text-emerald-800">
+                                <span>Aktivní příjemce platby: <b>{selectedSalon.businessName}</b></span>
+                                <span className="font-mono text-stone-400 text-[10px]">ID: {selectedSalon.id}</span>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
 
